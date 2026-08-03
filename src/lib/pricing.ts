@@ -43,34 +43,42 @@ export function isVolumeUnit(unit: string): boolean {
   return /yard/i.test(unit);
 }
 
-/** Seeded into a contractor's price book at onboarding, editable afterward. */
+/**
+ * Seeded into a contractor's price book at onboarding, editable afterward.
+ * Material-only unit costs (labor is priced separately, below) — the ones
+ * marked below were checked in 2026 against real Canadian supplier/market
+ * pricing and adjusted to match; everything else is a reasonable estimate
+ * that wasn't specifically re-verified. Every contractor is expected to
+ * calibrate these against their own actual supplier quotes in Settings —
+ * this is a starting point, not a substitute for that.
+ */
 export const DEFAULT_PRICE_BOOK: DefaultPriceBookItem[] = [
   // Surface materials — priced per sqft of finished area unless noted
-  { kind: "MATERIAL", name: "Concrete Pavers", unit: "sqft", unitCost: 12, projectType: null },
-  { kind: "MATERIAL", name: "Brick Pavers", unit: "sqft", unitCost: 14, projectType: null },
+  { kind: "MATERIAL", name: "Concrete Pavers", unit: "sqft", unitCost: 8, projectType: null }, // CAD market-checked: $5-10 standard, $12-20 premium brands
+  { kind: "MATERIAL", name: "Brick Pavers", unit: "sqft", unitCost: 10, projectType: null }, // CAD market-checked: same paver category as above
   { kind: "MATERIAL", name: "Belgian Block", unit: "sqft", unitCost: 16, projectType: null },
-  { kind: "MATERIAL", name: "Natural Stone", unit: "sqft", unitCost: 22, projectType: null },
+  { kind: "MATERIAL", name: "Natural Stone", unit: "sqft", unitCost: 8, projectType: null }, // CAD market-checked: $3.90-11/sqft material-only flagstone
   { kind: "MATERIAL", name: "Bluestone", unit: "sqft", unitCost: 26, projectType: null },
   { kind: "MATERIAL", name: "Travertine", unit: "sqft", unitCost: 28, projectType: null },
-  { kind: "MATERIAL", name: "Poured Concrete", unit: "sqft", unitCost: 9, projectType: null },
-  { kind: "MATERIAL", name: "Stamped Concrete", unit: "sqft", unitCost: 13, projectType: null },
-  { kind: "MATERIAL", name: "Asphalt", unit: "sqft", unitCost: 7, projectType: null },
-  { kind: "MATERIAL", name: "Mulch", unit: "sqft", unitCost: 2.5, projectType: null },
-  { kind: "MATERIAL", name: "Sod", unit: "sqft", unitCost: 1.25, projectType: null },
-  { kind: "MATERIAL", name: "Artificial Turf", unit: "sqft", unitCost: 9, projectType: null },
+  { kind: "MATERIAL", name: "Poured Concrete", unit: "sqft", unitCost: 4, projectType: null }, // CAD market-checked: ~$2.50/sqft raw material example, $5-10/sqft installed total
+  { kind: "MATERIAL", name: "Stamped Concrete", unit: "sqft", unitCost: 6, projectType: null }, // scaled with poured concrete correction above
+  { kind: "MATERIAL", name: "Asphalt", unit: "sqft", unitCost: 3, projectType: null }, // CAD market-checked: $3-8.50/sqft installed total (incl. labor)
+  { kind: "MATERIAL", name: "Mulch", unit: "sqft", unitCost: 0.45, projectType: null }, // CAD market-checked: ~$0.30-0.50/sqft at 3in from bulk CAD$35-55/cy
+  { kind: "MATERIAL", name: "Sod", unit: "sqft", unitCost: 0.65, projectType: null }, // CAD market-checked: $0.30-0.85/sqft material-only (Ontario)
+  { kind: "MATERIAL", name: "Artificial Turf", unit: "sqft", unitCost: 7, projectType: null }, // CAD market-checked: $5-9/sqft material-only typical
   { kind: "MATERIAL", name: "River Rock", unit: "sqft", unitCost: 6, projectType: null },
   { kind: "MATERIAL", name: "Crushed Granite", unit: "sqft", unitCost: 4, projectType: null },
   { kind: "MATERIAL", name: "Gravel / Base Fill", unit: "sqft", unitCost: 3, projectType: null },
-  { kind: "MATERIAL", name: "Retaining Wall Block", unit: "sqft", unitCost: 18, projectType: null },
+  { kind: "MATERIAL", name: "Retaining Wall Block", unit: "sqft", unitCost: 12, projectType: null }, // CAD market-checked: $5-8 basic, $10-18 premium
   { kind: "MATERIAL", name: "Natural Stone Wall", unit: "sqft", unitCost: 24, projectType: null },
   { kind: "MATERIAL", name: "Cedar Decking", unit: "sqft", unitCost: 16, projectType: null },
-  { kind: "MATERIAL", name: "Composite Decking", unit: "sqft", unitCost: 20, projectType: null },
+  { kind: "MATERIAL", name: "Composite Decking", unit: "sqft", unitCost: 12, projectType: null }, // CAD market-checked: Trex-tier $7-12/sqft standard, $15-20+ premium
   { kind: "MATERIAL", name: "Pool Construction", unit: "sqft", unitCost: 65, projectType: null },
 
   // Base-prep materials — priced per cubic yard, used as an optional
   // sub-layer under a shape (e.g. 4" of 3/4" crush under a patio).
-  { kind: "MATERIAL", name: "3/4\" Crushed Stone", unit: "cubic yard", unitCost: 48, projectType: null },
-  { kind: "MATERIAL", name: "Road Base / Crusher Run", unit: "cubic yard", unitCost: 42, projectType: null },
+  { kind: "MATERIAL", name: "3/4\" Crushed Stone", unit: "cubic yard", unitCost: 52, projectType: null }, // CAD market-checked: Ontario example $59/cy delivered, general $25-60/cy
+  { kind: "MATERIAL", name: "Road Base / Crusher Run", unit: "cubic yard", unitCost: 48, projectType: null }, // scaled with crushed stone correction above
   { kind: "MATERIAL", name: "Sand Bedding", unit: "cubic yard", unitCost: 40, projectType: null },
   { kind: "MATERIAL", name: "Topsoil", unit: "cubic yard", unitCost: 35, projectType: null },
 
