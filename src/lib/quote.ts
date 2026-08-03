@@ -21,6 +21,57 @@ export interface ComputedQuote {
   total: number;
 }
 
+export interface TakeoffLine {
+  material: string;
+  quantity: number;
+  unit: string;
+}
+
+/**
+ * Plain quantity-per-material breakdown with no pricing — the shopping list
+ * a contractor actually brings to the supplier counter or hands to a crew,
+ * as opposed to the priced quote shown to the client.
+ */
+export function materialsTakeoff(
+  shapes: Array<{
+    type: string;
+    material: string;
+    points: Point[];
+    heightFt?: number | null;
+    baseLayers?: BaseLayer[] | null;
+  }>,
+  priceBook: Pick<PriceBookItem, "name" | "unit">[]
+): { surface: TakeoffLine[]; base: TakeoffLine[] } {
+  const unitByName = new Map(priceBook.map((p) => [p.name, p.unit]));
+  const surfaceByName = new Map<string, number>();
+  const baseByName = new Map<string, number>();
+
+  for (const shape of shapes) {
+    const area = shapeQuotedArea(shape.type, shape.points, shape.heightFt);
+    surfaceByName.set(shape.material, (surfaceByName.get(shape.material) ?? 0) + area);
+
+    for (const layer of shape.baseLayers ?? []) {
+      if (!layer.material || !layer.depthIn) continue;
+      const volume = cubicYards(area, layer.depthIn);
+      baseByName.set(layer.material, (baseByName.get(layer.material) ?? 0) + volume);
+    }
+  }
+
+  const toLines = (map: Map<string, number>, fallbackUnit: string): TakeoffLine[] =>
+    Array.from(map.entries())
+      .map(([material, quantity]) => ({
+        material,
+        quantity: Math.round(quantity * 100) / 100,
+        unit: unitByName.get(material) ?? fallbackUnit,
+      }))
+      .sort((a, b) => a.material.localeCompare(b.material));
+
+  return {
+    surface: toLines(surfaceByName, "sqft"),
+    base: toLines(baseByName, "cubic yard"),
+  };
+}
+
 /**
  * Builds an itemized quote from a job's design shapes and the contractor's
  * price book. Materials are aggregated by material name across shapes; labor

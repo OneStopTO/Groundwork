@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireContractor } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -43,6 +44,12 @@ export default async function DesignPage({
               {job.areaSqft.toLocaleString()} sqft)
             </p>
           </div>
+          <Link
+            href={`/jobs/${job.id}/materials`}
+            className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline whitespace-nowrap"
+          >
+            Materials list →
+          </Link>
         </div>
         <DesignEditor
           job={job}

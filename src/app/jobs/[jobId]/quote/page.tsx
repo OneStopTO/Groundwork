@@ -113,14 +113,22 @@ export default async function QuotePage({
       <main className="flex-1 mx-auto max-w-4xl w-full px-6 py-8">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-2xl font-semibold">Quote — {job.clientName}</h1>
-          {hasDesignAccess(contractor) && (
+          <div className="flex items-center gap-4">
             <Link
-              href={`/jobs/${job.id}/design`}
+              href={`/jobs/${job.id}/materials`}
               className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline"
             >
-              ← Back to design
+              Materials list →
             </Link>
-          )}
+            {hasDesignAccess(contractor) && (
+              <Link
+                href={`/jobs/${job.id}/design`}
+                className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline"
+              >
+                ← Back to design
+              </Link>
+            )}
+          </div>
         </div>
         {designChangedSinceQuote && (
           <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 px-4 py-2 text-sm text-amber-900 dark:text-amber-200">
