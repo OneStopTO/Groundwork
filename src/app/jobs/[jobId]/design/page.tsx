@@ -17,7 +17,7 @@ export default async function DesignPage({
 
   const job = await prisma.job.findFirst({
     where: { id: jobId, contractorId: contractor.id },
-    include: { shapes: true },
+    include: { shapes: { orderBy: { sortOrder: "asc" } } },
   });
   if (!job) notFound();
 

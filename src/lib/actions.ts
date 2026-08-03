@@ -262,7 +262,7 @@ export async function saveShapesAction(jobId: string, shapes: unknown) {
     prisma.designShape.createMany({
       data: parsed
         .filter((s) => s.points.length >= 3)
-        .map((s) => {
+        .map((s, i) => {
           const validLayers = (s.baseLayers ?? []).filter((l) => l.material && l.depthIn > 0);
           return {
             jobId,
@@ -272,6 +272,7 @@ export async function saveShapesAction(jobId: string, shapes: unknown) {
             points: JSON.stringify(s.points),
             heightFt: s.type === "WALL" ? s.heightFt ?? null : null,
             baseLayers: validLayers.length > 0 ? JSON.stringify(validLayers) : null,
+            sortOrder: i,
           };
         }),
     }),

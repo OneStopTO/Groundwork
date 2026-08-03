@@ -103,17 +103,48 @@ function turfTexture(base: string, blade: string, uniform: boolean, sizeFt: numb
   return { tile: svgUrl(svg), sizeFtW: sizeFt, sizeFtH: sizeFt, base };
 }
 
-/** Horizontal plank boards with grain lines, for decking. */
-function plankTexture(base: string, line: string, grain: string): Texture {
+/**
+ * Tight horizontal deck boards with grain lines and per-board tone
+ * variation — three narrower boards per tile (~4in reveal each) rather
+ * than two wide ones, closer to real composite/wood decking strips.
+ */
+function plankTexture(base: string, line: string, grain: string, shade: string): Texture {
   const w = 60;
-  const h = 16;
+  const boardH = 14;
+  const h = boardH * 3;
+  const board = (y: number, shadeOpacity: number) => `
+    <rect x="0" y="${y}" width="${w}" height="${shadeOpacity ? boardH : 0}" fill="${shade}" opacity="${shadeOpacity}"/>
+    <line x1="0" y1="${y + boardH}" x2="${w}" y2="${y + boardH}" stroke="${line}" stroke-width="1.4"/>
+    <path d="M3 ${y + 3} h9 M16 ${y + 6} h12 M33 ${y + 3} h10 M47 ${y + 7} h11" stroke="${grain}" stroke-width="0.8" fill="none" opacity="0.55"/>
+    <path d="M6 ${y + 9} h14 M24 ${y + 11} h16 M44 ${y + 10} h14" stroke="${grain}" stroke-width="0.8" fill="none" opacity="0.45"/>
+  `;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <rect width="${w}" height="${h}" fill="${base}"/>
-    <line x1="0" y1="${h}" x2="${w}" y2="${h}" stroke="${line}" stroke-width="1.5"/>
-    <path d="M4 4 h10 M20 7 h14 M40 3 h16" stroke="${grain}" stroke-width="1" fill="none" opacity="0.6"/>
-    <path d="M8 11 h20 M34 9 h20" stroke="${grain}" stroke-width="1" fill="none" opacity="0.5"/>
+    ${board(0, 0)}
+    ${board(boardH, 0.3)}
+    ${board(boardH * 2, 0.15)}
   </svg>`;
-  return { tile: svgUrl(svg), sizeFtW: 6, sizeFtH: 0.5, base };
+  const boardWidthFt = 0.35; // ~4.2in reveal — a tight strip, not a wide board
+  return { tile: svgUrl(svg), sizeFtW: 5, sizeFtH: boardWidthFt * 3, base };
+}
+
+/**
+ * Stair treads — stacked bands each with a dark riser shadow and a bright
+ * nosing highlight, read clearly as steps rather than a flat material fill.
+ * Wide enough (20ft) that a typical stair run never needs a horizontal
+ * repeat, which would otherwise show as a seam running across the treads.
+ */
+function stepTreadTexture(base: string, riser: string, treadFt: number): Texture {
+  const repeatWFt = 20;
+  const w = repeatWFt * PX_PER_FT;
+  const h = treadFt * PX_PER_FT;
+  const riserH = h * 0.22;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <rect width="${w}" height="${h}" fill="${base}"/>
+    <rect x="0" y="0" width="${w}" height="${riserH}" fill="${riser}"/>
+    <rect x="0" y="${riserH}" width="${w}" height="${Math.max(2, h * 0.035)}" fill="#ffffff" opacity="0.4"/>
+  </svg>`;
+  return { tile: svgUrl(svg), sizeFtW: repeatWFt, sizeFtH: treadFt, base };
 }
 
 /** Flat fill with a control-joint grid, for poured/stamped concrete and asphalt. */
@@ -165,8 +196,12 @@ const RIVER_ROCK = speckleTexture("#93a3a8", "#6d7d82", "#b8c6ca", 0.6);
 const CRUSHED_GRANITE = speckleTexture("#c98f7e", "#a8654f", "#e0b7a8", 0.3);
 const SOD = turfTexture("#7cb668", "#5a9146", false, 0.3);
 const ARTIFICIAL_TURF = turfTexture("#5fa550", "#3f7d38", true, 0.3);
-const WOOD_DECKING = plankTexture("#b98354", "#8a5f39", "#9c6f45");
-const COMPOSITE_DECKING = plankTexture("#7d7266", "#5c5348", "#6b6155");
+// Warm honey-maple tone with tight ~4in board reveals, closer to how real
+// wood/composite decking (e.g. maple-toned lines like Trex Maplewood) reads
+// from above than a flat reddish-cedar fill.
+const WOOD_DECKING = plankTexture("#c19a5b", "#8a6a3d", "#a67f45", "#96723f");
+const COMPOSITE_DECKING = plankTexture("#6e6459", "#443d35", "#5a5148", "#4d453d");
+const STEPS = stepTreadTexture("#c3c7ba", "#4a4a44", 1);
 const POURED_CONCRETE = slabTexture("#c7c9cb", "#aaacae", false, 4);
 const STAMPED_CONCRETE = slabTexture("#c2b6a3", "#a4988733", true, 2);
 const ASPHALT = slabTexture("#3f4247", "#2a2c2f", false, 5);
@@ -201,4 +236,16 @@ export function materialTexture(materialName: string): Texture | null {
     if (test.test(materialName)) return texture;
   }
   return null;
+}
+
+/**
+ * STEPS shapes read as stair treads regardless of the chosen material name
+ * (their default material, "Natural Stone", would otherwise be visually
+ * identical to a flagstone patio) — same base color as the matched
+ * material, but with a tread/nosing pattern instead of a flagstone fill.
+ */
+export function stepsTexture(materialName: string): Texture {
+  const matched = materialTexture(materialName);
+  if (!matched) return STEPS;
+  return stepTreadTexture(matched.base, "#4a4a44", 1);
 }

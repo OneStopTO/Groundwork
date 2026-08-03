@@ -98,6 +98,20 @@ export function rotatePoints(points: Point[], center: Point, angle: number): Poi
 }
 
 /**
+ * A shape's current orientation, in degrees, derived from its own geometry
+ * rather than tracked as separate state — the edge from its first to second
+ * vertex starts perfectly horizontal for every shape this editor creates
+ * (rectPoints' top edge), so any deviation from 0 is exactly how far the
+ * rotate handle has turned it. Lets directional textures (deck planks,
+ * stair treads, wall coursing) rotate along with the shape.
+ */
+export function shapeAngleDeg(points: Point[]): number {
+  if (points.length < 2) return 0;
+  const [a, b] = points;
+  return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+}
+
+/**
  * Volume, in cubic yards, of a depth_in-thick layer spread across
  * area_sqft — how base-prep materials (crushed stone, sand bedding) are
  * actually bought and priced, unlike surface materials which are per sqft.

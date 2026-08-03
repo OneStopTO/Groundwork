@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { DesignShape, Job } from "@prisma/client";
 import { saveShapesAction } from "@/lib/actions";
 import { SHAPE_DEFAULT_MATERIAL } from "@/lib/pricing";
-import { materialTexture } from "@/lib/textures";
+import { materialTexture, stepsTexture } from "@/lib/textures";
 import {
   polygonBounds,
   rectPoints,
@@ -14,6 +14,7 @@ import {
   wallRunLength,
   centroid,
   rotatePoints,
+  shapeAngleDeg,
   cubicYards,
   type Point,
   type BaseLayer,
@@ -148,6 +149,41 @@ export function DesignEditor({
     setShapes((prev) => prev.filter((s) => s.id !== id));
     setSelectedId((cur) => (cur === id ? null : cur));
     setSelectedVertex(null);
+  };
+
+  const duplicateShape = (id: string) => {
+    const newId = crypto.randomUUID();
+    setShapes((prev) => {
+      const source = prev.find((s) => s.id === id);
+      if (!source) return prev;
+      const offset = 2; // ft — nudged so the copy is visible and grabbable, not stacked exactly on top
+      const copy: EditableShape = {
+        ...source,
+        id: newId,
+        points: source.points.map((p) => clampPoint({ x: p.x + offset, y: p.y + offset }, job.lengthFt, job.widthFt)),
+        baseLayers: source.baseLayers.map((l) => ({ ...l })),
+      };
+      return [...prev, copy];
+    });
+    setSelectedId(newId);
+    setSelectedVertex(null);
+  };
+
+  /** Shape render order doubles as z-order — later in the array draws on top. */
+  const bringToFront = (id: string) => {
+    setShapes((prev) => {
+      const shape = prev.find((s) => s.id === id);
+      if (!shape) return prev;
+      return [...prev.filter((s) => s.id !== id), shape];
+    });
+  };
+
+  const sendToBack = (id: string) => {
+    setShapes((prev) => {
+      const shape = prev.find((s) => s.id === id);
+      if (!shape) return prev;
+      return [shape, ...prev.filter((s) => s.id !== id)];
+    });
   };
 
   const addBaseLayer = (shapeId: string, material: string) => {
@@ -433,10 +469,13 @@ export function DesignEditor({
           >
             <defs>
               {shapes.map((shape) => {
-                const texture = materialTexture(shape.material);
+                const texture =
+                  shape.type === "STEPS" ? stepsTexture(shape.material) : materialTexture(shape.material);
                 if (!texture) return null;
                 const w = texture.sizeFtW * scale;
                 const h = texture.sizeFtH * scale;
+                const shapeCenter = centroid(shape.points);
+                const angle = shapeAngleDeg(shape.points);
                 return (
                   <pattern
                     key={shape.id}
@@ -444,6 +483,7 @@ export function DesignEditor({
                     patternUnits="userSpaceOnUse"
                     width={w}
                     height={h}
+                    patternTransform={`rotate(${angle} ${shapeCenter.x * scale} ${shapeCenter.y * scale})`}
                   >
                     <image href={texture.tile} width={w} height={h} />
                   </pattern>
@@ -452,7 +492,8 @@ export function DesignEditor({
             </defs>
 
             {shapes.map((shape) => {
-              const texture = materialTexture(shape.material);
+              const texture =
+                shape.type === "STEPS" ? stepsTexture(shape.material) : materialTexture(shape.material);
               const pxPoints = shape.points.map((p) => `${p.x * scale},${p.y * scale}`).join(" ");
               const isSelected = selectedId === shape.id;
               const bounds = polygonBounds(shape.points);
@@ -770,6 +811,26 @@ export function DesignEditor({
                 </button>
               </div>
             )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => duplicateShape(selected.id)}
+                className="text-sm rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                Duplicate
+              </button>
+              <button
+                onClick={() => bringToFront(selected.id)}
+                className="text-sm rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                Bring to front
+              </button>
+              <button
+                onClick={() => sendToBack(selected.id)}
+                className="text-sm rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                Send to back
+              </button>
+            </div>
             <button
               onClick={() => deleteShape(selected.id)}
               className="block text-sm text-red-600 hover:underline"

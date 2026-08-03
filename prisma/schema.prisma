@@ -126,6 +126,10 @@ model DesignShape {
   baseLayers String? // JSON-encoded array of {material, depthIn} base-prep sub-layers
   // (e.g. 2in of 3/4" crush + 1in of screeding sand), priced by volume
 
+  sortOrder Int @default(0) // render/z-order — later draws on top; set from
+  // the design canvas's shape array order on every save, since Postgres row
+  // fetch order isn't guaranteed without an explicit orderBy
+
   createdAt DateTime @default(now())
 }
 

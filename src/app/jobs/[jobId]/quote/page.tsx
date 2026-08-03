@@ -19,7 +19,7 @@ export default async function QuotePage({
   const job = await prisma.job.findFirst({
     where: { id: jobId, contractorId: contractor.id },
     include: {
-      shapes: true,
+      shapes: { orderBy: { sortOrder: "asc" } },
       quote: { include: { lineItems: true, options: { orderBy: { sortOrder: "asc" } } } },
     },
   });
