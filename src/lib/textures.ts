@@ -104,28 +104,29 @@ function turfTexture(base: string, blade: string, uniform: boolean, sizeFt: numb
 }
 
 /**
- * Tight horizontal deck boards with grain lines and per-board tone
- * variation — three narrower boards per tile (~4in reveal each) rather
- * than two wide ones, closer to real composite/wood decking strips.
+ * Deck boards as a continuous surface with a thin (~half-inch) joint line
+ * between each board and subtle alternating tone — not fine grain detail,
+ * which doesn't survive being rendered at the small on-canvas board size
+ * (a real ~4-5in board is only a handful of px tall) and was producing
+ * rendering noise that read as gaps between boards. The internal viewBox
+ * matches the tile's real-world aspect ratio exactly so the browser never
+ * has to stretch it non-uniformly, which was the other source of artifacts.
  */
-function plankTexture(base: string, line: string, grain: string, shade: string): Texture {
-  const w = 60;
-  const boardH = 14;
-  const h = boardH * 3;
-  const board = (y: number, shadeOpacity: number) => `
-    <rect x="0" y="${y}" width="${w}" height="${shadeOpacity ? boardH : 0}" fill="${shade}" opacity="${shadeOpacity}"/>
-    <line x1="0" y1="${y + boardH}" x2="${w}" y2="${y + boardH}" stroke="${line}" stroke-width="1.4"/>
-    <path d="M3 ${y + 3} h9 M16 ${y + 6} h12 M33 ${y + 3} h10 M47 ${y + 7} h11" stroke="${grain}" stroke-width="0.8" fill="none" opacity="0.55"/>
-    <path d="M6 ${y + 9} h14 M24 ${y + 11} h16 M44 ${y + 10} h14" stroke="${grain}" stroke-width="0.8" fill="none" opacity="0.45"/>
-  `;
+function plankTexture(base: string, joint: string, shade: string): Texture {
+  const boardWidthFt = 0.4; // ~4.8in reveal
+  const jointFt = 0.045; // ~half inch
+  const res = 40; // px per foot, purely for authoring resolution
+  const w = res; // 1ft of length — no horizontal detail, so the repeat width is arbitrary
+  const boardH = boardWidthFt * res;
+  const jointH = jointFt * res;
+  const h = boardH * 2;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <rect width="${w}" height="${h}" fill="${base}"/>
-    ${board(0, 0)}
-    ${board(boardH, 0.3)}
-    ${board(boardH * 2, 0.15)}
+    <rect x="0" y="0" width="${w}" height="${boardH}" fill="${shade}" opacity="0.22"/>
+    <rect x="0" y="${boardH - jointH}" width="${w}" height="${jointH}" fill="${joint}"/>
+    <rect x="0" y="${h - jointH}" width="${w}" height="${jointH}" fill="${joint}"/>
   </svg>`;
-  const boardWidthFt = 0.35; // ~4.2in reveal — a tight strip, not a wide board
-  return { tile: svgUrl(svg), sizeFtW: 5, sizeFtH: boardWidthFt * 3, base };
+  return { tile: svgUrl(svg), sizeFtW: 1, sizeFtH: boardWidthFt * 2, base };
 }
 
 /**
@@ -199,8 +200,8 @@ const ARTIFICIAL_TURF = turfTexture("#5fa550", "#3f7d38", true, 0.3);
 // Warm honey-maple tone with tight ~4in board reveals, closer to how real
 // wood/composite decking (e.g. maple-toned lines like Trex Maplewood) reads
 // from above than a flat reddish-cedar fill.
-const WOOD_DECKING = plankTexture("#c19a5b", "#8a6a3d", "#a67f45", "#96723f");
-const COMPOSITE_DECKING = plankTexture("#6e6459", "#443d35", "#5a5148", "#4d453d");
+const WOOD_DECKING = plankTexture("#c19a5b", "#8a6a3d", "#96723f");
+const COMPOSITE_DECKING = plankTexture("#6e6459", "#443d35", "#4d453d");
 const STEPS = stepTreadTexture("#c3c7ba", "#4a4a44", 1);
 const POURED_CONCRETE = slabTexture("#c7c9cb", "#aaacae", false, 4);
 const STAMPED_CONCRETE = slabTexture("#c2b6a3", "#a4988733", true, 2);

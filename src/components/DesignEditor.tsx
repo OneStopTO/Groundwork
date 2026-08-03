@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { DesignShape, Job } from "@prisma/client";
 import { saveShapesAction } from "@/lib/actions";
@@ -46,6 +47,18 @@ interface EditableShape {
 
 const DEFAULT_WALL_HEIGHT_FT = 2;
 const DEFAULT_BASE_DEPTH_IN = 4;
+
+const DesignPreview3D = dynamic(
+  () => import("./DesignPreview3D").then((m) => m.DesignPreview3D),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[480px] flex items-center justify-center text-sm text-black/40 dark:text-white/40 border border-black/15 dark:border-white/20 rounded-md">
+        Loading 3D preview…
+      </div>
+    ),
+  }
+);
 
 const SHAPE_DEFAULTS: Record<ShapeType, { width: number; height: number; color: string; name: string }> = {
   PATIO: { width: 14, height: 12, color: "#7dd3fc", name: "Patio" },
@@ -104,6 +117,7 @@ export function DesignEditor({
   const [selectedVertex, setSelectedVertex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
   const dragState = useRef<DragMode | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -438,15 +452,41 @@ export function DesignEditor({
           ))}
         </div>
 
-        <div className="flex justify-end mb-2">
-          <button
-            onClick={() => setShowLabels((v) => !v)}
-            className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            {showLabels ? "Hide labels & sqft" : "Show labels & sqft"}
-          </button>
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex gap-1 rounded-md border border-black/15 dark:border-white/20 p-0.5 text-xs">
+            <button
+              onClick={() => setViewMode("2d")}
+              className={`px-2.5 py-1 rounded ${
+                viewMode === "2d" ? "bg-emerald-700 text-white" : "hover:bg-black/5 dark:hover:bg-white/10"
+              }`}
+            >
+              2D plan
+            </button>
+            <button
+              onClick={() => setViewMode("3d")}
+              className={`px-2.5 py-1 rounded ${
+                viewMode === "3d" ? "bg-emerald-700 text-white" : "hover:bg-black/5 dark:hover:bg-white/10"
+              }`}
+            >
+              3D preview
+            </button>
+          </div>
+          {viewMode === "2d" && (
+            <button
+              onClick={() => setShowLabels((v) => !v)}
+              className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              {showLabels ? "Hide labels & sqft" : "Show labels & sqft"}
+            </button>
+          )}
         </div>
 
+        {viewMode === "3d" && (
+          <DesignPreview3D shapes={shapes} lengthFt={job.lengthFt} widthFt={job.widthFt} />
+        )}
+
+        {viewMode === "2d" && (
+        <>
         <div
           ref={canvasRef}
           className="relative border border-black/15 dark:border-white/20 bg-white dark:bg-black/40 overflow-hidden"
@@ -595,6 +635,8 @@ export function DesignEditor({
           the blue handle above a selected element to rotate it, or click the
           small + on an edge to add a new corner.
         </p>
+        </>
+        )}
 
         <div className="flex gap-3 mt-6">
           <button
