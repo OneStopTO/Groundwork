@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { DesignShape, Job } from "@prisma/client";
@@ -121,6 +121,61 @@ export function DesignEditor({
   const dragState = useRef<DragMode | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Undo/redo — a stray drag or accidental edit was otherwise unrecoverable
+  // short of reloading (discarding everything unsaved) or fixing the
+  // database by hand. shapesRef always mirrors the latest `shapes` so
+  // pushHistory() can snapshot "state right before this action" from
+  // plain event handlers without needing it threaded through as an arg.
+  const shapesRef = useRef(shapes);
+  useEffect(() => {
+    shapesRef.current = shapes;
+  }, [shapes]);
+  const [past, setPast] = useState<EditableShape[][]>([]);
+  const [future, setFuture] = useState<EditableShape[][]>([]);
+
+  const pushHistory = useCallback(() => {
+    setPast((p) => [...p, shapesRef.current]);
+    setFuture([]);
+  }, []);
+
+  const undo = useCallback(() => {
+    setPast((p) => {
+      if (p.length === 0) return p;
+      const previous = p[p.length - 1];
+      setFuture((f) => [shapesRef.current, ...f]);
+      setShapes(previous);
+      return p.slice(0, -1);
+    });
+    setSelectedId(null);
+    setSelectedVertex(null);
+  }, []);
+
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (f.length === 0) return f;
+      const next = f[0];
+      setPast((p) => [...p, shapesRef.current]);
+      setShapes(next);
+      return f.slice(1);
+    });
+    setSelectedId(null);
+    setSelectedVertex(null);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return; // let native field undo happen
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.key.toLowerCase() !== "z") return;
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo]);
+
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, MAX_CANVAS_PX / Math.max(job.lengthFt, 1)));
   const canvasWidthPx = job.lengthFt * scale;
   const canvasHeightPx = job.widthFt * scale;
@@ -136,6 +191,7 @@ export function DesignEditor({
   );
 
   const addShape = (type: ShapeType) => {
+    pushHistory();
     const def = SHAPE_DEFAULTS[type];
     const width = Math.min(def.width, job.lengthFt);
     const height = Math.min(def.height, job.widthFt);
@@ -156,16 +212,19 @@ export function DesignEditor({
   };
 
   const updateShape = (id: string, patch: Partial<EditableShape>) => {
+    pushHistory();
     setShapes((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   };
 
   const deleteShape = (id: string) => {
+    pushHistory();
     setShapes((prev) => prev.filter((s) => s.id !== id));
     setSelectedId((cur) => (cur === id ? null : cur));
     setSelectedVertex(null);
   };
 
   const duplicateShape = (id: string) => {
+    pushHistory();
     const newId = crypto.randomUUID();
     setShapes((prev) => {
       const source = prev.find((s) => s.id === id);
@@ -185,6 +244,7 @@ export function DesignEditor({
 
   /** Shape render order doubles as z-order — later in the array draws on top. */
   const bringToFront = (id: string) => {
+    pushHistory();
     setShapes((prev) => {
       const shape = prev.find((s) => s.id === id);
       if (!shape) return prev;
@@ -193,6 +253,7 @@ export function DesignEditor({
   };
 
   const sendToBack = (id: string) => {
+    pushHistory();
     setShapes((prev) => {
       const shape = prev.find((s) => s.id === id);
       if (!shape) return prev;
@@ -201,6 +262,7 @@ export function DesignEditor({
   };
 
   const addBaseLayer = (shapeId: string, material: string) => {
+    pushHistory();
     setShapes((prev) =>
       prev.map((s) =>
         s.id === shapeId
@@ -211,6 +273,7 @@ export function DesignEditor({
   };
 
   const updateBaseLayer = (shapeId: string, index: number, patch: Partial<BaseLayer>) => {
+    pushHistory();
     setShapes((prev) =>
       prev.map((s) =>
         s.id === shapeId
@@ -224,6 +287,7 @@ export function DesignEditor({
   };
 
   const removeBaseLayer = (shapeId: string, index: number) => {
+    pushHistory();
     setShapes((prev) =>
       prev.map((s) =>
         s.id === shapeId
@@ -234,6 +298,7 @@ export function DesignEditor({
   };
 
   const insertVertex = (shapeId: string, edgeIndex: number) => {
+    pushHistory();
     setShapes((prev) =>
       prev.map((s) => {
         if (s.id !== shapeId) return s;
@@ -248,6 +313,7 @@ export function DesignEditor({
   };
 
   const deleteVertex = (shapeId: string, index: number) => {
+    pushHistory();
     setShapes((prev) =>
       prev.map((s) => {
         if (s.id !== shapeId || s.points.length <= 3) return s;
@@ -260,6 +326,7 @@ export function DesignEditor({
   /** Precise numeric entry for one corner — a companion to dragging, not a replacement. */
   const setVertexPosition = (shapeId: string, index: number, axis: "x" | "y", value: number) => {
     if (Number.isNaN(value)) return;
+    pushHistory();
     setShapes((prev) =>
       prev.map((s) => {
         if (s.id !== shapeId) return s;
@@ -278,6 +345,7 @@ export function DesignEditor({
   /** Scales the whole shape's bounding box to an exact width/height, anchored at its top-left. */
   const setShapeSize = (shapeId: string, axis: "width" | "height", value: number) => {
     if (Number.isNaN(value) || value <= 0) return;
+    pushHistory();
     setShapes((prev) =>
       prev.map((s) => {
         if (s.id !== shapeId) return s;
@@ -377,6 +445,7 @@ export function DesignEditor({
 
   const startShapeDrag = (e: React.PointerEvent, shape: EditableShape) => {
     e.stopPropagation();
+    pushHistory();
     setSelectedId(shape.id);
     setSelectedVertex(null);
     dragState.current = {
@@ -391,6 +460,7 @@ export function DesignEditor({
 
   const startVertexDrag = (e: React.PointerEvent, shape: EditableShape, index: number) => {
     e.stopPropagation();
+    pushHistory();
     setSelectedId(shape.id);
     setSelectedVertex(index);
     dragState.current = {
@@ -406,6 +476,7 @@ export function DesignEditor({
 
   const startRotateDrag = (e: React.PointerEvent, shape: EditableShape) => {
     e.stopPropagation();
+    pushHistory();
     setSelectedId(shape.id);
     setSelectedVertex(null);
     const center = centroid(shape.points);
@@ -471,14 +542,32 @@ export function DesignEditor({
               3D preview
             </button>
           </div>
-          {viewMode === "2d" && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowLabels((v) => !v)}
-              className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={undo}
+              disabled={past.length === 0}
+              title="Undo (Ctrl/Cmd+Z)"
+              className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {showLabels ? "Hide labels & sqft" : "Show labels & sqft"}
+              ↶ Undo
             </button>
-          )}
+            <button
+              onClick={redo}
+              disabled={future.length === 0}
+              title="Redo (Ctrl/Cmd+Shift+Z)"
+              className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ↷ Redo
+            </button>
+            {viewMode === "2d" && (
+              <button
+                onClick={() => setShowLabels((v) => !v)}
+                className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                {showLabels ? "Hide labels & sqft" : "Show labels & sqft"}
+              </button>
+            )}
+          </div>
         </div>
 
         {viewMode === "3d" && (
