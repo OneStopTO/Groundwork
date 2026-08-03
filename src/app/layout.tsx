@@ -19,10 +19,43 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
+const SITE_URL = "https://groundwork-blush-eta.vercel.app";
+const TITLE = "GroundWork — Design & Quoting for Landscapers";
+const DESCRIPTION =
+  "Turn a property walkthrough into a designed layout and an accurate, investment-framed quote in minutes. Built for landscaping and hardscaping contractors.";
+
 export const metadata: Metadata = {
-  title: "GroundWork — Design & Quoting for Landscapers",
-  description:
-    "Turn a property walkthrough into a designed layout and an accurate, investment-framed quote in minutes.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: TITLE,
+    template: "%s — GroundWork",
+  },
+  description: DESCRIPTION,
+  keywords: [
+    "landscaping software",
+    "hardscaping quoting software",
+    "landscape design tool",
+    "contractor quoting software",
+    "patio design tool",
+    "landscape estimating software",
+  ],
+  authors: [{ name: "GroundWork" }],
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "GroundWork",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

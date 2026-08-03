@@ -72,7 +72,18 @@ export default function SignupPage() {
             {pending ? "Creating account…" : "Create free account"}
           </button>
         </form>
-        <p className="text-sm text-black/60 dark:text-white/60 mt-6">
+        <p className="text-xs text-black/50 dark:text-white/50 mt-4">
+          By creating an account you agree to the{" "}
+          <Link href="/terms" className="underline">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+        <p className="text-sm text-black/60 dark:text-white/60 mt-4">
           Already have an account?{" "}
           <Link href="/login" className="text-emerald-700 dark:text-emerald-400 font-medium">
             Log in

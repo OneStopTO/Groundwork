@@ -27,6 +27,7 @@ export default async function LandingPage() {
   if (contractor) redirect("/dashboard");
 
   return (
+    <>
     <main className="flex-1">
       <section className="relative overflow-hidden contour-field">
         <div className="mx-auto max-w-6xl px-6 pt-24 pb-20 grid lg:grid-cols-[1.1fr_1fr] gap-16 items-center">
@@ -157,5 +158,25 @@ export default async function LandingPage() {
         </div>
       </section>
     </main>
+    <footer
+      className="border-t py-8"
+      style={{ borderColor: "var(--stone-border)" }}
+    >
+      <div
+        className="mx-auto max-w-6xl px-6 flex flex-wrap items-center justify-between gap-4 text-sm"
+        style={{ color: "var(--ink-muted)" }}
+      >
+        <span>© {new Date().getFullYear()} GroundWork</span>
+        <div className="flex gap-5">
+          <Link href="/terms" className="hover:underline">
+            Terms
+          </Link>
+          <Link href="/privacy" className="hover:underline">
+            Privacy
+          </Link>
+        </div>
+      </div>
+    </footer>
+    </>
   );
 }
