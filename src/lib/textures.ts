@@ -3,32 +3,53 @@
  * keyword match against the (free-text, editable) material name, so any
  * price book item named e.g. "Belgard Pavers" still gets the paver look.
  * Falls back to a flat color (handled by the caller) when nothing matches.
+ *
+ * Every texture is authored at true real-world size (`sizeFtW`/`sizeFtH`),
+ * not an arbitrary pixel size — the canvas multiplies these by its
+ * px-per-foot scale, so a 2ft paver actually reads as 2ft on the grid.
  */
 
-type Texture = { tile: string; tileSize: number; base: string };
+type Texture = { tile: string; sizeFtW: number; sizeFtH: number; base: string };
+
+/** SVG authoring resolution — purely for crisp joint lines, unrelated to real-world size. */
+const PX_PER_FT = 100;
 
 function svgUrl(svg: string) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-/** A grid of rectangular units (pavers, brick, block) with mortar/sand joints. */
-function unitPavingTexture(base: string, line: string, unitW: number, unitH: number): Texture {
-  const w = unitW * 2;
-  const h = unitH;
+/** A grid of rectangular units (pavers, brick, block) with mortar/sand joints, at true size. */
+function unitPavingTexture(base: string, line: string, wFt: number, hFt: number): Texture {
+  const w = wFt * PX_PER_FT;
+  const h = hFt * PX_PER_FT;
+  const strokeW = Math.max(2, PX_PER_FT * 0.02);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <rect width="${w}" height="${h}" fill="${base}"/>
-    <line x1="0" y1="0" x2="${w}" y2="0" stroke="${line}" stroke-width="1"/>
-    <line x1="0" y1="${h}" x2="${w}" y2="${h}" stroke="${line}" stroke-width="1"/>
-    <line x1="${w / 2}" y1="0" x2="${w / 2}" y2="${h}" stroke="${line}" stroke-width="1"/>
-    <line x1="0" y1="0" x2="0" y2="${h}" stroke="${line}" stroke-width="1"/>
+    <rect x="0" y="0" width="${w}" height="${h}" fill="none" stroke="${line}" stroke-width="${strokeW}"/>
   </svg>`;
-  return { tile: svgUrl(svg), tileSize: unitW, base };
+  return { tile: svgUrl(svg), sizeFtW: wFt, sizeFtH: hFt, base };
+}
+
+/** Stacked horizontal courses with vertical joint breaks, for coursed wall block. */
+function courseTexture(base: string, line: string, courseHFt: number): Texture {
+  const wFt = courseHFt * 3;
+  const w = wFt * PX_PER_FT;
+  const h = courseHFt * PX_PER_FT;
+  const strokeW = Math.max(2, PX_PER_FT * 0.02);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <rect width="${w}" height="${h}" fill="${base}"/>
+    <line x1="0" y1="${h}" x2="${w}" y2="${h}" stroke="${line}" stroke-width="${strokeW}"/>
+    <line x1="${w / 3}" y1="0" x2="${w / 3}" y2="${h}" stroke="${line}" stroke-width="${strokeW}" opacity="0.7"/>
+    <line x1="${(2 * w) / 3}" y1="0" x2="${(2 * w) / 3}" y2="${h}" stroke="${line}" stroke-width="${strokeW}" opacity="0.7"/>
+  </svg>`;
+  return { tile: svgUrl(svg), sizeFtW: wFt, sizeFtH: courseHFt, base };
 }
 
 /** Irregular flagstone/crazy-paving polygons over a base fill. */
-function stoneTexture(base: string, line: string, size = 60): Texture {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <rect width="${size}" height="${size}" fill="${base}"/>
+function stoneTexture(base: string, line: string, sizeFt: number): Texture {
+  const s = 60;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+    <rect width="${s}" height="${s}" fill="${base}"/>
     <g fill="none" stroke="${line}" stroke-width="1.4">
       <path d="M0 18 L16 12 L28 20 L22 34 L0 32 Z"/>
       <path d="M16 12 L34 4 L46 14 L28 20 Z"/>
@@ -39,11 +60,12 @@ function stoneTexture(base: string, line: string, size = 60): Texture {
       <path d="M38 38 L54 30 L60 44 L60 60 L36 58 Z"/>
     </g>
   </svg>`;
-  return { tile: svgUrl(svg), tileSize: size, base };
+  return { tile: svgUrl(svg), sizeFtW: sizeFt, sizeFtH: sizeFt, base };
 }
 
 /** Scattered speckles over a base fill (mulch, gravel, river rock, granite). */
-function speckleTexture(base: string, dark: string, light: string, size = 24): Texture {
+function speckleTexture(base: string, dark: string, light: string, sizeFt: number): Texture {
+  const size = 24;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <rect width="${size}" height="${size}" fill="${base}"/>
     <g fill="${dark}">
@@ -61,11 +83,11 @@ function speckleTexture(base: string, dark: string, light: string, size = 24): T
       <circle cx="${size * 0.45}" cy="${size * 0.68}" r="${size * 0.045}"/>
     </g>
   </svg>`;
-  return { tile: svgUrl(svg), tileSize: size, base };
+  return { tile: svgUrl(svg), sizeFtW: sizeFt, sizeFtH: sizeFt, base };
 }
 
 /** Blade-stroke turf, works for natural sod and artificial turf alike. */
-function turfTexture(base: string, blade: string, uniform: boolean): Texture {
+function turfTexture(base: string, blade: string, uniform: boolean, sizeFt: number): Texture {
   const size = 16;
   const rot = uniform ? 0 : 1;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
@@ -78,7 +100,7 @@ function turfTexture(base: string, blade: string, uniform: boolean): Texture {
       <line x1="14" y1="14" x2="${15 - rot}" y2="9"/>
     </g>
   </svg>`;
-  return { tile: svgUrl(svg), tileSize: size, base };
+  return { tile: svgUrl(svg), sizeFtW: sizeFt, sizeFtH: sizeFt, base };
 }
 
 /** Horizontal plank boards with grain lines, for decking. */
@@ -91,11 +113,11 @@ function plankTexture(base: string, line: string, grain: string): Texture {
     <path d="M4 4 h10 M20 7 h14 M40 3 h16" stroke="${grain}" stroke-width="1" fill="none" opacity="0.6"/>
     <path d="M8 11 h20 M34 9 h20" stroke="${grain}" stroke-width="1" fill="none" opacity="0.5"/>
   </svg>`;
-  return { tile: svgUrl(svg), tileSize: h, base };
+  return { tile: svgUrl(svg), sizeFtW: 6, sizeFtH: 0.5, base };
 }
 
 /** Flat fill with a control-joint grid, for poured/stamped concrete and asphalt. */
-function slabTexture(base: string, line: string, stamped: boolean): Texture {
+function slabTexture(base: string, line: string, stamped: boolean, sizeFt: number): Texture {
   const s = stamped ? 24 : 40;
   const stampLines = stamped
     ? `<path d="M0 8 H${s} M0 16 H${s} M8 0 V${s} M16 0 V${s}" stroke="${line}" stroke-width="0.6" opacity="0.5"/>`
@@ -106,7 +128,7 @@ function slabTexture(base: string, line: string, stamped: boolean): Texture {
     <line x1="0" y1="0" x2="0" y2="${s}" stroke="${line}" stroke-width="1.5"/>
     ${stampLines}
   </svg>`;
-  return { tile: svgUrl(svg), tileSize: s, base };
+  return { tile: svgUrl(svg), sizeFtW: sizeFt, sizeFtH: sizeFt, base };
 }
 
 /** Rippled water surface, for pools. */
@@ -119,33 +141,41 @@ function waterTexture(): Texture {
     <path d="M0 20 Q10 16 20 20 T40 20" stroke="#4a90ad" stroke-width="1.5" fill="none" opacity="0.7"/>
     <path d="M0 32 Q10 28 20 32 T40 32" stroke="#8ecfe8" stroke-width="1.5" fill="none" opacity="0.8"/>
   </svg>`;
-  return { tile: svgUrl(svg), tileSize: s, base };
+  return { tile: svgUrl(svg), sizeFtW: 4, sizeFtH: 4, base };
 }
 
-const PAVERS = unitPavingTexture("#d9c9ab", "#b8a483", 20, 20);
-const BRICK_PAVERS = unitPavingTexture("#b5573a", "#8f4029", 18, 9);
-const BELGIAN_BLOCK = unitPavingTexture("#8f8b86", "#6b6864", 10, 10);
-const BLUESTONE = stoneTexture("#7c8a94", "#5c6a73", 60);
-const TRAVERTINE = stoneTexture("#dccdad", "#b8a884", 60);
-const NATURAL_STONE = stoneTexture("#c9cdc3", "#9a9d92", 60);
-const STONE_WALL = unitPavingTexture("#9a9184", "#726b60", 16, 14);
-const WALL_BLOCK = unitPavingTexture("#b7ab97", "#8f8570", 24, 16);
-const MULCH = speckleTexture("#6b4226", "#4a2c17", "#8a5a35", 24);
-const GRAVEL = speckleTexture("#c9c9c2", "#a8a89f", "#e2e2da", 20);
-const RIVER_ROCK = speckleTexture("#a3a89a", "#7d8272", "#c7cbbd", 26);
-const CRUSHED_GRANITE = speckleTexture("#c98f7e", "#a8654f", "#e0b7a8", 18);
-const SOD = turfTexture("#7cb668", "#5a9146", false);
-const ARTIFICIAL_TURF = turfTexture("#5fa550", "#3f7d38", true);
+// Generic paver fallback (~12x12in unit) — warm tan, used when no more
+// specific match (like the 2x2 concrete paver below) applies.
+const PAVERS = unitPavingTexture("#d9c9ab", "#b8a483", 1, 1);
+
+// 2x2 concrete pavers — cool concrete grey, drawn at true 2ft x 2ft so a
+// patio reads as an actual grid of 2ft slabs at any canvas scale.
+const CONCRETE_PAVER_2X2 = unitPavingTexture("#9c9c96", "#767671", 2, 2);
+
+const BRICK_PAVERS = unitPavingTexture("#b5573a", "#8f4029", 0.67, 0.33);
+const BELGIAN_BLOCK = unitPavingTexture("#5c5c59", "#3a3a38", 0.4, 0.4);
+const BLUESTONE = stoneTexture("#7c8a94", "#5c6a73", 4);
+const TRAVERTINE = stoneTexture("#dccdad", "#b8a884", 4);
+const NATURAL_STONE = stoneTexture("#c3c7ba", "#8f9385", 4);
+const STONE_WALL = stoneTexture("#8a7f6d", "#5f5648", 4);
+const WALL_BLOCK = courseTexture("#b3a084", "#8c7a5f", 0.5);
+const MULCH = speckleTexture("#6b4226", "#4a2c17", "#8a5a35", 0.5);
+const GRAVEL = speckleTexture("#c9c9c2", "#a8a89f", "#e2e2da", 0.4);
+const RIVER_ROCK = speckleTexture("#93a3a8", "#6d7d82", "#b8c6ca", 0.6);
+const CRUSHED_GRANITE = speckleTexture("#c98f7e", "#a8654f", "#e0b7a8", 0.3);
+const SOD = turfTexture("#7cb668", "#5a9146", false, 0.3);
+const ARTIFICIAL_TURF = turfTexture("#5fa550", "#3f7d38", true, 0.3);
 const WOOD_DECKING = plankTexture("#b98354", "#8a5f39", "#9c6f45");
 const COMPOSITE_DECKING = plankTexture("#7d7266", "#5c5348", "#6b6155");
-const POURED_CONCRETE = slabTexture("#c7c9cb", "#aaacae", false);
-const STAMPED_CONCRETE = slabTexture("#c2b6a3", "#a4988733", true);
-const ASPHALT = slabTexture("#3f4247", "#2a2c2f", false);
+const POURED_CONCRETE = slabTexture("#c7c9cb", "#aaacae", false, 4);
+const STAMPED_CONCRETE = slabTexture("#c2b6a3", "#a4988733", true, 2);
+const ASPHALT = slabTexture("#3f4247", "#2a2c2f", false, 5);
 const POOL_WATER = waterTexture();
 
 const MATCHERS: Array<{ test: RegExp; texture: Texture }> = [
   { test: /brick/i, texture: BRICK_PAVERS },
   { test: /belgian block/i, texture: BELGIAN_BLOCK },
+  { test: /2\s*x\s*2/i, texture: CONCRETE_PAVER_2X2 },
   { test: /paver/i, texture: PAVERS },
   { test: /bluestone/i, texture: BLUESTONE },
   { test: /travertine/i, texture: TRAVERTINE },

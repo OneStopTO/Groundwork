@@ -5,10 +5,20 @@ import { materialTexture } from "@/lib/textures";
  * paver/mulch/stone textures from the product, not a stock photo or
  * generic illustration. What you see here is what the tool draws.
  */
+// Purely decorative scale for this illustration — not tied to the design
+// canvas's real px-per-foot, which depends on an actual job's dimensions.
+const HERO_PX_PER_FT = 14;
+
 export function HeroCanvas() {
   const patio = materialTexture("Concrete Pavers")!;
   const bed = materialTexture("Mulch")!;
   const walk = materialTexture("Natural Stone")!;
+  const patioW = patio.sizeFtW * HERO_PX_PER_FT;
+  const patioH = patio.sizeFtH * HERO_PX_PER_FT;
+  const bedW = bed.sizeFtW * HERO_PX_PER_FT;
+  const bedH = bed.sizeFtH * HERO_PX_PER_FT;
+  const walkW = walk.sizeFtW * HERO_PX_PER_FT;
+  const walkH = walk.sizeFtH * HERO_PX_PER_FT;
 
   return (
     <svg
@@ -27,14 +37,14 @@ export function HeroCanvas() {
             strokeWidth="1"
           />
         </pattern>
-        <pattern id="hero-patio" patternUnits="userSpaceOnUse" width={patio.tileSize} height={patio.tileSize}>
-          <image href={patio.tile} width={patio.tileSize} height={patio.tileSize} />
+        <pattern id="hero-patio" patternUnits="userSpaceOnUse" width={patioW} height={patioH}>
+          <image href={patio.tile} width={patioW} height={patioH} />
         </pattern>
-        <pattern id="hero-bed" patternUnits="userSpaceOnUse" width={bed.tileSize} height={bed.tileSize}>
-          <image href={bed.tile} width={bed.tileSize} height={bed.tileSize} />
+        <pattern id="hero-bed" patternUnits="userSpaceOnUse" width={bedW} height={bedH}>
+          <image href={bed.tile} width={bedW} height={bedH} />
         </pattern>
-        <pattern id="hero-walk" patternUnits="userSpaceOnUse" width={walk.tileSize} height={walk.tileSize}>
-          <image href={walk.tile} width={walk.tileSize} height={walk.tileSize} />
+        <pattern id="hero-walk" patternUnits="userSpaceOnUse" width={walkW} height={walkH}>
+          <image href={walk.tile} width={walkW} height={walkH} />
         </pattern>
       </defs>
 

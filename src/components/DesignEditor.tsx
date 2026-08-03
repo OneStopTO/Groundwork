@@ -102,6 +102,7 @@ export function DesignEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedVertex, setSelectedVertex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
   const dragState = useRef<DragMode | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -401,6 +402,15 @@ export function DesignEditor({
           ))}
         </div>
 
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={() => setShowLabels((v) => !v)}
+            className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            {showLabels ? "Hide labels & sqft" : "Show labels & sqft"}
+          </button>
+        </div>
+
         <div
           ref={canvasRef}
           className="relative border border-black/15 dark:border-white/20 bg-white dark:bg-black/40 overflow-hidden"
@@ -425,15 +435,17 @@ export function DesignEditor({
               {shapes.map((shape) => {
                 const texture = materialTexture(shape.material);
                 if (!texture) return null;
+                const w = texture.sizeFtW * scale;
+                const h = texture.sizeFtH * scale;
                 return (
                   <pattern
                     key={shape.id}
                     id={`tex-${shape.id}`}
                     patternUnits="userSpaceOnUse"
-                    width={texture.tileSize}
-                    height={texture.tileSize}
+                    width={w}
+                    height={h}
                   >
-                    <image href={texture.tile} width={texture.tileSize} height={texture.tileSize} />
+                    <image href={texture.tile} width={w} height={h} />
                   </pattern>
                 );
               })}
@@ -515,20 +527,21 @@ export function DesignEditor({
             })}
           </svg>
 
-          {shapes.map((shape) => {
-            const cx = shape.points.reduce((s, p) => s + p.x, 0) / shape.points.length;
-            const cy = shape.points.reduce((s, p) => s + p.y, 0) / shape.points.length;
-            return (
-              <span
-                key={shape.id}
-                className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none truncate bg-white/80 dark:bg-black/70 px-1 rounded-sm text-[11px] font-medium text-black/80"
-                style={{ left: cx * scale, top: cy * scale }}
-              >
-                {shape.label || SHAPE_DEFAULTS[shape.type].name} ·{" "}
-                {Math.round(shapeQuotedArea(shape.type, shape.points, shape.heightFt))} sqft
-              </span>
-            );
-          })}
+          {showLabels &&
+            shapes.map((shape) => {
+              const cx = shape.points.reduce((s, p) => s + p.x, 0) / shape.points.length;
+              const cy = shape.points.reduce((s, p) => s + p.y, 0) / shape.points.length;
+              return (
+                <span
+                  key={shape.id}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none truncate bg-white/80 dark:bg-black/70 px-1 rounded-sm text-[11px] font-medium text-black/80"
+                  style={{ left: cx * scale, top: cy * scale }}
+                >
+                  {shape.label || SHAPE_DEFAULTS[shape.type].name} ·{" "}
+                  {Math.round(shapeQuotedArea(shape.type, shape.points, shape.heightFt))} sqft
+                </span>
+              );
+            })}
 
           {shapes.length === 0 && (
             <p className="absolute inset-0 flex items-center justify-center text-sm text-black/40 dark:text-white/40 pointer-events-none">
