@@ -8,6 +8,7 @@ import { getSession, requireContractor } from "./session";
 import { TRIAL_DAYS } from "./tiers";
 import { DEFAULT_PRICE_BOOK } from "./pricing";
 import { savePhoto } from "./storage";
+import { captureServerEvent } from "./posthog-server";
 import type { ProjectType, PricingTier } from "@prisma/client";
 
 export type ActionState = { error?: string } | undefined;
@@ -39,6 +40,10 @@ export async function signupAction(
   session.contractorId = contractor.id;
   await session.save();
 
+  await captureServerEvent(contractor.id, "account_registered", {
+    $set: { email: contractor.email },
+  });
+
   redirect("/onboarding");
 }
 
@@ -58,6 +63,8 @@ export async function loginAction(
   const session = await getSession();
   session.contractorId = contractor.id;
   await session.save();
+
+  await captureServerEvent(contractor.id, "contractor_logged_in");
 
   redirect(contractor.onboardedAt ? "/dashboard" : "/onboarding");
 }
@@ -99,6 +106,8 @@ export async function completeOnboardingAction(formData: FormData) {
     });
   }
 
+  await captureServerEvent(contractor.id, "onboarding_completed");
+
   redirect("/jobs/new");
 }
 
@@ -124,6 +133,8 @@ export async function selectTierAction(formData: FormData) {
     where: { id: contractor.id },
     data: { selectedTier: tier },
   });
+
+  await captureServerEvent(contractor.id, "pricing_tier_selected", { tier });
 
   revalidatePath("/settings");
   revalidatePath("/pricing");
@@ -167,6 +178,8 @@ export async function addPriceBookItemAction(formData: FormData) {
       projectType,
     },
   });
+
+  await captureServerEvent(contractor.id, "price_book_item_added", { kind, name });
 
   revalidatePath("/settings");
 }
@@ -222,6 +235,11 @@ export async function createJobAction(formData: FormData) {
     },
   });
 
+  await captureServerEvent(contractor.id, "job_created", {
+    jobId: job.id,
+    projectType,
+  });
+
   redirect(`/jobs/${job.id}/design`);
 }
 
@@ -262,6 +280,11 @@ export async function saveShapesAction(jobId: string, shapes: unknown) {
   await prisma.job.update({
     where: { id: jobId },
     data: { status: "DESIGNED" },
+  });
+
+  await captureServerEvent(contractor.id, "design_saved", {
+    jobId,
+    shapeCount: parsed.length,
   });
 
   revalidatePath(`/jobs/${jobId}/design`);
@@ -354,6 +377,12 @@ export async function saveQuoteAction(jobId: string, payload: unknown) {
 
   await prisma.job.update({ where: { id: jobId }, data: { status: "QUOTED" } });
 
+  await captureServerEvent(contractor.id, "quote_saved", {
+    jobId,
+    total,
+    optionCount: options.length,
+  });
+
   revalidatePath(`/jobs/${jobId}/quote`);
 }
 
@@ -363,6 +392,7 @@ export async function markSentAction(jobId: string) {
     where: { id: jobId, contractorId: contractor.id },
     data: { status: "SENT" },
   });
+  await captureServerEvent(contractor.id, "proposal_marked_sent", { jobId });
   revalidatePath(`/jobs/${jobId}/quote`);
   revalidatePath("/dashboard");
 }
@@ -382,5 +412,16 @@ export async function acceptProposalAction(formData: FormData) {
       acceptedTotal: acceptedTotal && !Number.isNaN(acceptedTotal) ? acceptedTotal : null,
     },
   });
+
+  // Public, unauthenticated action — the recipient has no stable non-PII
+  // identity, so this is captured as a one-off anonymous event rather than
+  // attributed to a person.
+  await captureServerEvent(crypto.randomUUID(), "proposal_accepted", {
+    shareToken,
+    optionName,
+    acceptedTotal,
+    $process_person_profile: false,
+  });
+
   revalidatePath(`/proposal/${shareToken}`);
 }

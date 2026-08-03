@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { Contractor } from "@prisma/client";
 import { effectiveTierLabel, isTrialActive } from "@/lib/tiers";
-import { logoutAction } from "@/lib/actions";
+import { PostHogIdentify } from "./PostHogIdentify";
+import { LogoutButton } from "./LogoutButton";
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Jobs" },
@@ -12,6 +13,7 @@ const NAV_LINKS = [
 export function TopNav({ contractor }: { contractor: Contractor }) {
   return (
     <header className="border-b" style={{ borderColor: "var(--stone-border)" }}>
+      <PostHogIdentify contractorId={contractor.id} email={contractor.email} />
       <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="font-display text-lg">
@@ -38,15 +40,7 @@ export function TopNav({ contractor }: { contractor: Contractor }) {
           >
             {effectiveTierLabel(contractor)}
           </span>
-          <form action={logoutAction}>
-            <button
-              className="min-h-[44px] px-1 hover:text-current"
-              style={{ color: "var(--ink-muted)" }}
-              type="submit"
-            >
-              Log out
-            </button>
-          </form>
+          <LogoutButton />
         </div>
       </div>
       {/* Mobile: the row above hides the nav links to save space, so repeat
