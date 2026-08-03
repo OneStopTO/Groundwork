@@ -78,6 +78,7 @@ const SHAPE_DEFAULTS: Record<ShapeType, { width: number; height: number; color: 
 const MAX_CANVAS_PX = 720;
 const MIN_SCALE = 3;
 const MAX_SCALE = 50;
+const SNAP_PX_THRESHOLD = 8; // screen px, independent of zoom — how close an edge needs to get to snap
 
 function toEditable(shapes: DesignShape[]): EditableShape[] {
   return shapes.map((s) => ({
@@ -117,6 +118,7 @@ export function DesignEditor({
   const [selectedVertex, setSelectedVertex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
+  const [snapEnabled, setSnapEnabled] = useState(true);
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
   const dragState = useRef<DragMode | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -369,6 +371,22 @@ export function DesignEditor({
     );
   };
 
+  /** Nudges `edges` toward the closest of `candidates` within threshold, or 0 if nothing's close enough. */
+  const snapOffset = (edges: number[], candidates: number[], thresholdFt: number): number => {
+    let best = 0;
+    let bestDist = thresholdFt;
+    for (const candidate of candidates) {
+      for (const edge of edges) {
+        const dist = Math.abs(edge - candidate);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = candidate - edge;
+        }
+      }
+    }
+    return best;
+  };
+
   const onPointerMove = useCallback(
     (e: PointerEvent) => {
       const drag = dragState.current;
@@ -391,6 +409,20 @@ export function DesignEditor({
       const dxFt = (e.clientX - drag.startPx) / scale;
       const dyFt = (e.clientY - drag.startPy) / scale;
 
+      // Candidate lines to snap to: the property edges and every other
+      // shape's bounding-box edges — this is what actually lets two
+      // shapes end up touching exactly instead of needing hand-typed
+      // coordinates to close a gap.
+      const thresholdFt = snapEnabled ? SNAP_PX_THRESHOLD / scale : 0;
+      const others = snapEnabled ? shapesRef.current.filter((s) => s.id !== drag.shapeId) : [];
+      const candidateXs = [0, job.lengthFt];
+      const candidateYs = [0, job.widthFt];
+      for (const s of others) {
+        const b = polygonBounds(s.points);
+        candidateXs.push(b.minX, b.maxX);
+        candidateYs.push(b.minY, b.maxY);
+      }
+
       setShapes((prev) =>
         prev.map((s) => {
           if (s.id !== drag.shapeId) return s;
@@ -401,16 +433,27 @@ export function DesignEditor({
             const maxX = Math.max(...xs);
             const minY = Math.min(...ys);
             const maxY = Math.max(...ys);
-            const clampedDx = Math.min(Math.max(dxFt, -minX), job.lengthFt - maxX);
-            const clampedDy = Math.min(Math.max(dyFt, -minY), job.widthFt - maxY);
+            let clampedDx = Math.min(Math.max(dxFt, -minX), job.lengthFt - maxX);
+            let clampedDy = Math.min(Math.max(dyFt, -minY), job.widthFt - maxY);
+            if (thresholdFt > 0) {
+              clampedDx += snapOffset([minX + clampedDx, maxX + clampedDx], candidateXs, thresholdFt);
+              clampedDy += snapOffset([minY + clampedDy, maxY + clampedDy], candidateYs, thresholdFt);
+            }
             return {
               ...s,
               points: drag.startPoints.map((p) => ({ x: p.x + clampedDx, y: p.y + clampedDy })),
             };
           } else {
+            let next = { x: drag.startPoint.x + dxFt, y: drag.startPoint.y + dyFt };
+            if (thresholdFt > 0) {
+              next = {
+                x: next.x + snapOffset([next.x], candidateXs, thresholdFt),
+                y: next.y + snapOffset([next.y], candidateYs, thresholdFt),
+              };
+            }
             const points = [...s.points];
             points[drag.index] = clampPoint(
-              { x: drag.startPoint.x + dxFt, y: drag.startPoint.y + dyFt },
+              next,
               job.lengthFt,
               job.widthFt
             );
@@ -419,7 +462,7 @@ export function DesignEditor({
         })
       );
     },
-    [scale, job.lengthFt, job.widthFt, clientToFt]
+    [scale, job.lengthFt, job.widthFt, clientToFt, snapEnabled]
   );
 
   const endDrag = useCallback(() => {
@@ -560,12 +603,25 @@ export function DesignEditor({
               ↷ Redo
             </button>
             {viewMode === "2d" && (
-              <button
-                onClick={() => setShowLabels((v) => !v)}
-                className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
-              >
-                {showLabels ? "Hide labels & sqft" : "Show labels & sqft"}
-              </button>
+              <>
+                <button
+                  onClick={() => setSnapEnabled((v) => !v)}
+                  title="Snap dragged edges to nearby shapes and the property line"
+                  className={`text-xs rounded-md border px-2.5 py-1 ${
+                    snapEnabled
+                      ? "border-emerald-700 text-emerald-700 dark:text-emerald-400 dark:border-emerald-400"
+                      : "border-black/15 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10"
+                  }`}
+                >
+                  Snap {snapEnabled ? "on" : "off"}
+                </button>
+                <button
+                  onClick={() => setShowLabels((v) => !v)}
+                  className="text-xs rounded-md border border-black/15 dark:border-white/20 px-2.5 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  {showLabels ? "Hide labels & sqft" : "Show labels & sqft"}
+                </button>
+              </>
             )}
           </div>
         </div>
