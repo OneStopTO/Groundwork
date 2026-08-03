@@ -32,6 +32,13 @@ enum ShapeType {
   WALL
   BED
   FIREPIT
+  DECK
+  DRIVEWAY
+  POOL
+  STEPS
+  LAWN
+  TREE
+  STRUCTURE
 }
 
 enum LineItemKind {
@@ -112,6 +119,9 @@ model DesignShape {
   label    String?
   points   String // JSON-encoded array of {x,y} vertices in feet, canvas space, in order
   heightFt Float? // wall face height (courses + cap, in feet) — WALL shapes only
+
+  baseLayers String? // JSON-encoded array of {material, depthIn} base-prep sub-layers
+                      // (e.g. 2in of 3/4" crush + 1in of screeding sand), priced by volume
 
   createdAt DateTime @default(now())
 }

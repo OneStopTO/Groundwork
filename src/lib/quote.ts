@@ -1,6 +1,6 @@
 import type { PriceBookItem, ProjectType } from "@prisma/client";
 import { DEFAULT_MARGIN_PCT } from "./pricing";
-import { shapeQuotedArea, type Point } from "./geometry";
+import { shapeQuotedArea, cubicYards, type Point, type BaseLayer } from "./geometry";
 
 export interface ComputedLineItem {
   kind: "MATERIAL" | "LABOR" | "MARGIN";
@@ -28,7 +28,13 @@ export interface ComputedQuote {
  * (falling back to the generic OTHER labor rate if none is set).
  */
 export function computeQuote(
-  shapes: Array<{ type: string; material: string; points: Point[]; heightFt?: number | null }>,
+  shapes: Array<{
+    type: string;
+    material: string;
+    points: Point[];
+    heightFt?: number | null;
+    baseLayers?: BaseLayer[] | null;
+  }>,
   priceBook: Pick<PriceBookItem, "kind" | "name" | "unit" | "unitCost" | "projectType">[],
   projectType: ProjectType,
   marginPct: number = DEFAULT_MARGIN_PCT
@@ -43,6 +49,7 @@ export function computeQuote(
     priceBook.find((p) => p.kind === "LABOR");
 
   const materialAreaByName = new Map<string, number>();
+  const baseVolumeByName = new Map<string, number>();
   let totalAreaSqft = 0;
 
   for (const shape of shapes) {
@@ -52,6 +59,15 @@ export function computeQuote(
       shape.material,
       (materialAreaByName.get(shape.material) ?? 0) + area
     );
+
+    for (const layer of shape.baseLayers ?? []) {
+      if (!layer.material || !layer.depthIn) continue;
+      const volume = cubicYards(area, layer.depthIn);
+      baseVolumeByName.set(
+        layer.material,
+        (baseVolumeByName.get(layer.material) ?? 0) + volume
+      );
+    }
   }
 
   const lineItems: ComputedLineItem[] = [];
@@ -67,6 +83,22 @@ export function computeQuote(
       kind: "MATERIAL",
       description: materialName,
       quantity: Math.round(area * 100) / 100,
+      unit,
+      unitCost,
+      lineTotal: Math.round(lineTotal * 100) / 100,
+    });
+  }
+
+  for (const [materialName, volume] of baseVolumeByName) {
+    const rate = materialRates.get(materialName);
+    const unitCost = rate?.unitCost ?? 0;
+    const unit = rate?.unit ?? "cubic yard";
+    const lineTotal = volume * unitCost;
+    materialTotal += lineTotal;
+    lineItems.push({
+      kind: "MATERIAL",
+      description: `${materialName} (base prep)`,
+      quantity: Math.round(volume * 100) / 100,
       unit,
       unitCost,
       lineTotal: Math.round(lineTotal * 100) / 100,

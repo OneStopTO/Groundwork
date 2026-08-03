@@ -223,6 +223,7 @@ export async function saveShapesAction(jobId: string, shapes: unknown) {
     label?: string;
     points: Array<{ x: number; y: number }>;
     heightFt?: number | null;
+    baseLayers?: Array<{ material: string; depthIn: number }>;
   }>;
 
   await prisma.$transaction([
@@ -230,14 +231,18 @@ export async function saveShapesAction(jobId: string, shapes: unknown) {
     prisma.designShape.createMany({
       data: parsed
         .filter((s) => s.points.length >= 3)
-        .map((s) => ({
-          jobId,
-          type: s.type as never,
-          material: s.material,
-          label: s.label || null,
-          points: JSON.stringify(s.points),
-          heightFt: s.type === "WALL" ? s.heightFt ?? null : null,
-        })),
+        .map((s) => {
+          const validLayers = (s.baseLayers ?? []).filter((l) => l.material && l.depthIn > 0);
+          return {
+            jobId,
+            type: s.type as never,
+            material: s.material,
+            label: s.label || null,
+            points: JSON.stringify(s.points),
+            heightFt: s.type === "WALL" ? s.heightFt ?? null : null,
+            baseLayers: validLayers.length > 0 ? JSON.stringify(validLayers) : null,
+          };
+        }),
     }),
   ]);
 

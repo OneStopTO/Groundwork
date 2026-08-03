@@ -42,6 +42,9 @@ export default async function QuotePage({
     material: s.material,
     points: JSON.parse(s.points) as Array<{ x: number; y: number }>,
     heightFt: s.heightFt,
+    baseLayers: s.baseLayers
+      ? (JSON.parse(s.baseLayers) as Array<{ material: string; depthIn: number }>)
+      : [],
   }));
 
   let initialLineItems: Array<{

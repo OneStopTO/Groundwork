@@ -3,6 +3,7 @@ import { requireContractor } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { TopNav } from "@/components/TopNav";
 import { hasDesignAccess } from "@/lib/tiers";
+import { isVolumeUnit } from "@/lib/pricing";
 import { DesignEditor } from "@/components/DesignEditor";
 
 export default async function DesignPage({
@@ -46,7 +47,8 @@ export default async function DesignPage({
         <DesignEditor
           job={job}
           initialShapes={job.shapes}
-          materialNames={materials.map((m) => m.name)}
+          materialNames={materials.filter((m) => !isVolumeUnit(m.unit)).map((m) => m.name)}
+          baseMaterialNames={materials.filter((m) => isVolumeUnit(m.unit)).map((m) => m.name)}
         />
       </main>
     </>

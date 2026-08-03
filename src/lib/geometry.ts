@@ -3,6 +3,11 @@ export interface Point {
   y: number;
 }
 
+export interface BaseLayer {
+  material: string;
+  depthIn: number;
+}
+
 /** Shoelace formula. Works for any simple (non-self-intersecting) polygon. */
 export function polygonArea(points: Point[]): number {
   if (points.length < 3) return 0;
@@ -69,4 +74,35 @@ export function shapeQuotedArea(
     return wallRunLength(points) * heightFt;
   }
   return polygonArea(points);
+}
+
+export function centroid(points: Point[]): Point {
+  return {
+    x: points.reduce((s, p) => s + p.x, 0) / points.length,
+    y: points.reduce((s, p) => s + p.y, 0) / points.length,
+  };
+}
+
+/** Rotates points rigidly around a center by an angle (radians). */
+export function rotatePoints(points: Point[], center: Point, angle: number): Point[] {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return points.map((p) => {
+    const dx = p.x - center.x;
+    const dy = p.y - center.y;
+    return {
+      x: center.x + dx * cos - dy * sin,
+      y: center.y + dx * sin + dy * cos,
+    };
+  });
+}
+
+/**
+ * Volume, in cubic yards, of a depth_in-thick layer spread across
+ * area_sqft — how base-prep materials (crushed stone, sand bedding) are
+ * actually bought and priced, unlike surface materials which are per sqft.
+ */
+export function cubicYards(areaSqft: number, depthIn: number): number {
+  if (areaSqft <= 0 || depthIn <= 0) return 0;
+  return (areaSqft * (depthIn / 12)) / 27;
 }

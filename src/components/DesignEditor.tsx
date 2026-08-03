@@ -12,10 +12,26 @@ import {
   clampPoint,
   shapeQuotedArea,
   wallRunLength,
+  centroid,
+  rotatePoints,
+  cubicYards,
   type Point,
+  type BaseLayer,
 } from "@/lib/geometry";
 
-type ShapeType = "PATIO" | "WALKWAY" | "WALL" | "BED" | "FIREPIT";
+type ShapeType =
+  | "PATIO"
+  | "WALKWAY"
+  | "WALL"
+  | "BED"
+  | "FIREPIT"
+  | "DECK"
+  | "DRIVEWAY"
+  | "POOL"
+  | "STEPS"
+  | "LAWN"
+  | "TREE"
+  | "STRUCTURE";
 
 interface EditableShape {
   id: string;
@@ -24,9 +40,11 @@ interface EditableShape {
   label: string;
   points: Point[];
   heightFt?: number | null;
+  baseLayers: BaseLayer[];
 }
 
 const DEFAULT_WALL_HEIGHT_FT = 2;
+const DEFAULT_BASE_DEPTH_IN = 4;
 
 const SHAPE_DEFAULTS: Record<ShapeType, { width: number; height: number; color: string; name: string }> = {
   PATIO: { width: 14, height: 12, color: "#7dd3fc", name: "Patio" },
@@ -34,6 +52,13 @@ const SHAPE_DEFAULTS: Record<ShapeType, { width: number; height: number; color: 
   WALL: { width: 20, height: 1.5, color: "#a8a29e", name: "Retaining Wall" },
   BED: { width: 6, height: 4, color: "#86efac", name: "Planting Bed" },
   FIREPIT: { width: 8, height: 8, color: "#fdba74", name: "Fire Pit" },
+  DECK: { width: 12, height: 10, color: "#c9a876", name: "Deck" },
+  DRIVEWAY: { width: 24, height: 12, color: "#54565b", name: "Driveway" },
+  POOL: { width: 16, height: 8, color: "#5fa8c9", name: "Pool" },
+  STEPS: { width: 6, height: 3, color: "#b9b2a4", name: "Steps" },
+  LAWN: { width: 16, height: 16, color: "#7cb668", name: "Lawn" },
+  TREE: { width: 4, height: 4, color: "#3f6b32", name: "Tree" },
+  STRUCTURE: { width: 10, height: 10, color: "#a68a64", name: "Structure" },
 };
 
 const MAX_CANVAS_PX = 720;
@@ -48,6 +73,7 @@ function toEditable(shapes: DesignShape[]): EditableShape[] {
     label: s.label ?? "",
     points: JSON.parse(s.points) as Point[],
     heightFt: s.heightFt ?? undefined,
+    baseLayers: s.baseLayers ? (JSON.parse(s.baseLayers) as BaseLayer[]) : [],
   }));
 }
 
@@ -57,16 +83,19 @@ function midpoint(a: Point, b: Point): Point {
 
 type DragMode =
   | { kind: "shape"; shapeId: string; startPx: number; startPy: number; startPoints: Point[] }
-  | { kind: "vertex"; shapeId: string; index: number; startPx: number; startPy: number; startPoint: Point };
+  | { kind: "vertex"; shapeId: string; index: number; startPx: number; startPy: number; startPoint: Point }
+  | { kind: "rotate"; shapeId: string; center: Point; startAngle: number; startPoints: Point[] };
 
 export function DesignEditor({
   job,
   initialShapes,
   materialNames,
+  baseMaterialNames,
 }: {
   job: Job;
   initialShapes: DesignShape[];
   materialNames: string[];
+  baseMaterialNames: string[];
 }) {
   const router = useRouter();
   const [shapes, setShapes] = useState<EditableShape[]>(() => toEditable(initialShapes));
@@ -74,11 +103,21 @@ export function DesignEditor({
   const [selectedVertex, setSelectedVertex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const dragState = useRef<DragMode | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, MAX_CANVAS_PX / Math.max(job.lengthFt, 1)));
   const canvasWidthPx = job.lengthFt * scale;
   const canvasHeightPx = job.widthFt * scale;
   const gridFt = scale > 20 ? 2 : scale > 8 ? 5 : 10;
+
+  const clientToFt = useCallback(
+    (clientX: number, clientY: number): Point => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return { x: 0, y: 0 };
+      return { x: (clientX - rect.left) / scale, y: (clientY - rect.top) / scale };
+    },
+    [scale]
+  );
 
   const addShape = (type: ShapeType) => {
     const def = SHAPE_DEFAULTS[type];
@@ -93,6 +132,7 @@ export function DesignEditor({
       label: def.name,
       points: rectPoints(cx, cy, width, height),
       heightFt: type === "WALL" ? DEFAULT_WALL_HEIGHT_FT : undefined,
+      baseLayers: [],
     };
     setShapes((prev) => [...prev, newShape]);
     setSelectedId(newShape.id);
@@ -107,6 +147,39 @@ export function DesignEditor({
     setShapes((prev) => prev.filter((s) => s.id !== id));
     setSelectedId((cur) => (cur === id ? null : cur));
     setSelectedVertex(null);
+  };
+
+  const addBaseLayer = (shapeId: string, material: string) => {
+    setShapes((prev) =>
+      prev.map((s) =>
+        s.id === shapeId
+          ? { ...s, baseLayers: [...s.baseLayers, { material, depthIn: DEFAULT_BASE_DEPTH_IN }] }
+          : s
+      )
+    );
+  };
+
+  const updateBaseLayer = (shapeId: string, index: number, patch: Partial<BaseLayer>) => {
+    setShapes((prev) =>
+      prev.map((s) =>
+        s.id === shapeId
+          ? {
+              ...s,
+              baseLayers: s.baseLayers.map((l, i) => (i === index ? { ...l, ...patch } : l)),
+            }
+          : s
+      )
+    );
+  };
+
+  const removeBaseLayer = (shapeId: string, index: number) => {
+    setShapes((prev) =>
+      prev.map((s) =>
+        s.id === shapeId
+          ? { ...s, baseLayers: s.baseLayers.filter((_, i) => i !== index) }
+          : s
+      )
+    );
   };
 
   const insertVertex = (shapeId: string, edgeIndex: number) => {
@@ -181,6 +254,21 @@ export function DesignEditor({
     (e: PointerEvent) => {
       const drag = dragState.current;
       if (!drag) return;
+
+      if (drag.kind === "rotate") {
+        const pt = clientToFt(e.clientX, e.clientY);
+        const currentAngle = Math.atan2(pt.y - drag.center.y, pt.x - drag.center.x);
+        const delta = currentAngle - drag.startAngle;
+        setShapes((prev) =>
+          prev.map((s) => {
+            if (s.id !== drag.shapeId) return s;
+            const rotated = rotatePoints(drag.startPoints, drag.center, delta);
+            return { ...s, points: rotated.map((p) => clampPoint(p, job.lengthFt, job.widthFt)) };
+          })
+        );
+        return;
+      }
+
       const dxFt = (e.clientX - drag.startPx) / scale;
       const dyFt = (e.clientY - drag.startPy) / scale;
 
@@ -212,7 +300,7 @@ export function DesignEditor({
         })
       );
     },
-    [scale, job.lengthFt, job.widthFt]
+    [scale, job.lengthFt, job.widthFt, clientToFt]
   );
 
   const endDrag = useCallback(() => {
@@ -265,6 +353,22 @@ export function DesignEditor({
     attachDragListeners();
   };
 
+  const startRotateDrag = (e: React.PointerEvent, shape: EditableShape) => {
+    e.stopPropagation();
+    setSelectedId(shape.id);
+    setSelectedVertex(null);
+    const center = centroid(shape.points);
+    const pt = clientToFt(e.clientX, e.clientY);
+    dragState.current = {
+      kind: "rotate",
+      shapeId: shape.id,
+      center,
+      startAngle: Math.atan2(pt.y - center.y, pt.x - center.x),
+      startPoints: shape.points,
+    };
+    attachDragListeners();
+  };
+
   const selected = shapes.find((s) => s.id === selectedId) ?? null;
 
   const save = async (andGoToQuote: boolean) => {
@@ -298,6 +402,7 @@ export function DesignEditor({
         </div>
 
         <div
+          ref={canvasRef}
           className="relative border border-black/15 dark:border-white/20 bg-white dark:bg-black/40 overflow-hidden"
           style={{
             width: canvasWidthPx,
@@ -338,6 +443,10 @@ export function DesignEditor({
               const texture = materialTexture(shape.material);
               const pxPoints = shape.points.map((p) => `${p.x * scale},${p.y * scale}`).join(" ");
               const isSelected = selectedId === shape.id;
+              const bounds = polygonBounds(shape.points);
+              const handleX = ((bounds.minX + bounds.maxX) / 2) * scale;
+              const handleTopY = bounds.minY * scale;
+              const handleY = handleTopY - 26;
               return (
                 <g key={shape.id}>
                   <polygon
@@ -348,38 +457,59 @@ export function DesignEditor({
                     className="cursor-move"
                     onPointerDown={(e) => startShapeDrag(e, shape)}
                   />
-                  {isSelected &&
-                    shape.points.map((p, i) => {
-                      const next = shape.points[(i + 1) % shape.points.length];
-                      const mid = midpoint(p, next);
-                      return (
-                        <g key={i}>
-                          <circle
-                            cx={mid.x * scale}
-                            cy={mid.y * scale}
-                            r={5}
-                            fill="#ffffff"
-                            stroke="#047857"
-                            strokeWidth={1.5}
-                            className="cursor-copy"
-                            onPointerDown={(e) => {
-                              e.stopPropagation();
-                              insertVertex(shape.id, i);
-                            }}
-                          />
-                          <circle
-                            cx={p.x * scale}
-                            cy={p.y * scale}
-                            r={6}
-                            fill={selectedVertex === i ? "#047857" : "#ffffff"}
-                            stroke="#047857"
-                            strokeWidth={2}
-                            className="cursor-grab"
-                            onPointerDown={(e) => startVertexDrag(e, shape, i)}
-                          />
-                        </g>
-                      );
-                    })}
+                  {isSelected && (
+                    <>
+                      <line
+                        x1={handleX}
+                        y1={handleTopY}
+                        x2={handleX}
+                        y2={handleY}
+                        stroke="#2563eb"
+                        strokeWidth={1.5}
+                      />
+                      <circle
+                        cx={handleX}
+                        cy={handleY}
+                        r={6}
+                        fill="#ffffff"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        className="cursor-alias"
+                        onPointerDown={(e) => startRotateDrag(e, shape)}
+                      />
+                      {shape.points.map((p, i) => {
+                        const next = shape.points[(i + 1) % shape.points.length];
+                        const mid = midpoint(p, next);
+                        return (
+                          <g key={i}>
+                            <circle
+                              cx={mid.x * scale}
+                              cy={mid.y * scale}
+                              r={5}
+                              fill="#ffffff"
+                              stroke="#047857"
+                              strokeWidth={1.5}
+                              className="cursor-copy"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                insertVertex(shape.id, i);
+                              }}
+                            />
+                            <circle
+                              cx={p.x * scale}
+                              cy={p.y * scale}
+                              r={6}
+                              fill={selectedVertex === i ? "#047857" : "#ffffff"}
+                              stroke="#047857"
+                              strokeWidth={2}
+                              className="cursor-grab"
+                              onPointerDown={(e) => startVertexDrag(e, shape, i)}
+                            />
+                          </g>
+                        );
+                      })}
+                    </>
+                  )}
                 </g>
               );
             })}
@@ -407,9 +537,9 @@ export function DesignEditor({
           )}
         </div>
         <p className="text-xs text-black/50 dark:text-white/50 mt-2">
-          Canvas scale: 1 grid square = {gridFt}ft. Drag a corner to reshape (add a
-          notch or angle it). Click the small + on an edge to add a new corner
-          there.
+          Canvas scale: 1 grid square = {gridFt}ft. Drag a corner to reshape,
+          the blue handle above a selected element to rotate it, or click the
+          small + on an edge to add a new corner.
         </p>
 
         <div className="flex gap-3 mt-6">
@@ -521,6 +651,86 @@ export function DesignEditor({
               </div>
             )}
 
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium">Base prep layers (optional)</p>
+                {baseMaterialNames.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => addBaseLayer(selected.id, baseMaterialNames[0])}
+                    className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    + Add layer
+                  </button>
+                )}
+              </div>
+
+              {selected.baseLayers.length === 0 ? (
+                <p className="text-xs text-black/50 dark:text-white/50">
+                  E.g. 2in of 3/4&quot; crushed stone, then 1in of screeding
+                  sand — stack as many layers as this element needs.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {selected.baseLayers.map((layer, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_70px_auto] gap-2 items-end">
+                      <div>
+                        {i === 0 && (
+                          <label className="block text-xs font-medium mb-1">Material</label>
+                        )}
+                        <select
+                          value={layer.material}
+                          onChange={(e) =>
+                            updateBaseLayer(selected.id, i, { material: e.target.value })
+                          }
+                          className="w-full rounded-md border border-black/15 dark:border-white/20 bg-transparent px-2 py-1 text-sm"
+                        >
+                          {Array.from(new Set([layer.material, ...baseMaterialNames])).map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        {i === 0 && (
+                          <label className="block text-xs font-medium mb-1">Depth (in)</label>
+                        )}
+                        <input
+                          type="number"
+                          step="0.25"
+                          min="0.25"
+                          value={layer.depthIn}
+                          onChange={(e) =>
+                            updateBaseLayer(selected.id, i, {
+                              depthIn: Math.max(0.25, Number(e.target.value)),
+                            })
+                          }
+                          className="w-full rounded-md border border-black/15 dark:border-white/20 bg-transparent px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeBaseLayer(selected.id, i)}
+                        className="text-red-600 text-sm pb-1.5"
+                        aria-label={`Remove ${layer.material} layer`}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-black/50 dark:text-white/50">
+                    {selected.baseLayers
+                      .map((l) => {
+                        const area = shapeQuotedArea(selected.type, selected.points, selected.heightFt);
+                        return `${l.material}: ${cubicYards(area, l.depthIn).toFixed(2)} cu yd`;
+                      })
+                      .join(" · ")}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {selectedVertex !== null && (
               <div>
                 <p className="text-xs font-medium mb-1">
@@ -580,10 +790,12 @@ function NumberField({
   label,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -592,8 +804,9 @@ function NumberField({
         type="number"
         step="0.1"
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-md border border-black/15 dark:border-white/20 bg-transparent px-2 py-1 text-sm"
+        className="w-full rounded-md border border-black/15 dark:border-white/20 bg-transparent px-2 py-1 text-sm disabled:opacity-40"
       />
     </div>
   );
