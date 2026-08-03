@@ -56,15 +56,15 @@ enum JobStatus {
 }
 
 model Contractor {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  passwordHash String
-  businessName String?
+  id                  String      @id @default(cuid())
+  email               String      @unique
+  passwordHash        String
+  businessName        String?
   typicalProjectTypes String? // JSON-encoded array of ProjectType strings, set during onboarding
-  onboardedAt DateTime?
-  selectedTier PricingTier @default(CORE) // plan the contractor picked (billing not yet wired up)
-  trialEndsAt DateTime // full CORE-level access until this date regardless of selectedTier
-  createdAt   DateTime @default(now())
+  onboardedAt         DateTime?
+  selectedTier        PricingTier @default(CORE) // plan the contractor picked (billing not yet wired up)
+  trialEndsAt         DateTime // full CORE-level access until this date regardless of selectedTier
+  createdAt           DateTime    @default(now())
 
   priceBookItems PriceBookItem[]
   jobs           Job[]
@@ -99,8 +99,11 @@ model Job {
   notes       String?
   photoUrl    String?
 
-  status      JobStatus @default(DRAFT)
-  shareToken  String    @unique @default(cuid())
+  status     JobStatus @default(DRAFT)
+  shareToken String    @unique @default(cuid())
+
+  acceptedOptionName String? // which proposal tier the client picked, if any ("" = base/Essential)
+  acceptedTotal      Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -110,9 +113,9 @@ model Job {
 }
 
 model DesignShape {
-  id    String    @id @default(cuid())
+  id    String @id @default(cuid())
   jobId String
-  job   Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   type     ShapeType
   material String
@@ -121,7 +124,7 @@ model DesignShape {
   heightFt Float? // wall face height (courses + cap, in feet) — WALL shapes only
 
   baseLayers String? // JSON-encoded array of {material, depthIn} base-prep sub-layers
-                      // (e.g. 2in of 3/4" crush + 1in of screeding sand), priced by volume
+  // (e.g. 2in of 3/4" crush + 1in of screeding sand), priced by volume
 
   createdAt DateTime @default(now())
 }
@@ -148,12 +151,30 @@ model Quote {
   updatedAt DateTime @updatedAt
 
   lineItems QuoteLineItem[]
+  options   ProposalOption[]
+}
+
+/**
+ * An optional upsell tier shown alongside the base quote on the client
+ * proposal (e.g. "Signature" = base + paver upgrade, +$2,400). Presented as
+ * a flat delta + description rather than its own itemized line items, since
+ * that's how contractors actually pitch package upgrades on site.
+ */
+model ProposalOption {
+  id      String @id @default(cuid())
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String
+  priceDelta  Float  @default(0)
+  sortOrder   Int    @default(0)
 }
 
 model QuoteLineItem {
-  id      String       @id @default(cuid())
+  id      String @id @default(cuid())
   quoteId String
-  quote   Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   kind        LineItemKind
   description String
@@ -161,5 +182,5 @@ model QuoteLineItem {
   unit        String
   unitCost    Float
   lineTotal   Float
-  sortOrder   Int @default(0)
+  sortOrder   Int          @default(0)
 }

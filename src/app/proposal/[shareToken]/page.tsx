@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PROJECT_TYPE_LABELS } from "@/lib/pricing";
 import { acceptProposalAction } from "@/lib/actions";
+import { ProposalTierPicker } from "@/components/ProposalTierPicker";
 
 function formatCurrency(n: number) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -18,7 +19,12 @@ export default async function ProposalPage({
     where: { shareToken },
     include: {
       contractor: true,
-      quote: { include: { lineItems: { orderBy: { sortOrder: "asc" } } } },
+      quote: {
+        include: {
+          lineItems: { orderBy: { sortOrder: "asc" } },
+          options: { orderBy: { sortOrder: "asc" } },
+        },
+      },
     },
   });
 
@@ -148,14 +154,30 @@ export default async function ProposalPage({
 
         <p className="mb-6" style={{ color: "var(--foreground)", opacity: 0.8 }}>{quote.proposalClosingCta}</p>
 
+        {quote.options.length > 0 && (
+          <ProposalTierPicker
+            shareToken={shareToken}
+            baseTotal={quote.total}
+            options={quote.options.map((o) => ({
+              id: o.id,
+              name: o.name,
+              description: o.description,
+              priceDelta: o.priceDelta,
+            }))}
+            alreadyAccepted={job.status === "ACCEPTED"}
+            acceptedOptionName={job.acceptedOptionName}
+          />
+        )}
+
         {job.status === "ACCEPTED" ? (
           <div className="rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 px-4 py-3 text-sm font-medium">
             ✓ Proposal accepted — {job.contractor.businessName || "your contractor"} will be in
             touch to schedule.
           </div>
-        ) : (
+        ) : quote.options.length === 0 ? (
           <form action={acceptProposalAction}>
             <input type="hidden" name="shareToken" value={shareToken} />
+            <input type="hidden" name="acceptedTotal" value={quote.total} />
             <button
               type="submit"
               className="rounded-md bg-emerald-700 text-white px-6 py-3 font-medium hover:bg-emerald-800"
@@ -163,7 +185,7 @@ export default async function ProposalPage({
               Accept this proposal
             </button>
           </form>
-        )}
+        ) : null}
       </div>
     </main>
   );

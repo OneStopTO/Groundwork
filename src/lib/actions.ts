@@ -287,7 +287,10 @@ export async function saveQuoteAction(jobId: string, payload: unknown) {
     proposalClosingCta: string;
     roiLowPct: number;
     roiHighPct: number;
+    options?: Array<{ name: string; description: string; priceDelta: number }>;
   };
+
+  const options = (data.options ?? []).filter((o) => o.name.trim().length > 0);
 
   const lineItems = data.lineItems.map((li) => ({
     ...li,
@@ -323,6 +326,9 @@ export async function saveQuoteAction(jobId: string, payload: unknown) {
       lineItems: {
         create: lineItems.map((li, i) => ({ ...li, sortOrder: i })),
       },
+      options: {
+        create: options.map((o, i) => ({ ...o, sortOrder: i })),
+      },
     },
     update: {
       marginPct: data.marginPct,
@@ -338,6 +344,10 @@ export async function saveQuoteAction(jobId: string, payload: unknown) {
       lineItems: {
         deleteMany: {},
         create: lineItems.map((li, i) => ({ ...li, sortOrder: i })),
+      },
+      options: {
+        deleteMany: {},
+        create: options.map((o, i) => ({ ...o, sortOrder: i })),
       },
     },
   });
@@ -360,9 +370,17 @@ export async function markSentAction(jobId: string) {
 export async function acceptProposalAction(formData: FormData) {
   const shareToken = String(formData.get("shareToken") ?? "");
   if (!shareToken) return;
+  const optionName = String(formData.get("optionName") ?? "") || null;
+  const totalRaw = formData.get("acceptedTotal");
+  const acceptedTotal = totalRaw ? Number(totalRaw) : null;
+
   await prisma.job.updateMany({
     where: { shareToken },
-    data: { status: "ACCEPTED" },
+    data: {
+      status: "ACCEPTED",
+      acceptedOptionName: optionName,
+      acceptedTotal: acceptedTotal && !Number.isNaN(acceptedTotal) ? acceptedTotal : null,
+    },
   });
   revalidatePath(`/proposal/${shareToken}`);
 }

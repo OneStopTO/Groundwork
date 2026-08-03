@@ -15,6 +15,13 @@ interface Row {
   unitCost: number;
 }
 
+interface OptionRow {
+  id: string;
+  name: string;
+  description: string;
+  priceDelta: number;
+}
+
 function formatCurrency(n: number) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
@@ -33,6 +40,9 @@ export function QuoteWorkspace({
   businessName,
   projectType,
   clientName,
+  initialOptions,
+  acceptedOptionName,
+  acceptedTotal,
 }: {
   jobId: string;
   shareToken: string;
@@ -47,14 +57,31 @@ export function QuoteWorkspace({
   businessName: string | null;
   projectType: ProjectType;
   clientName: string;
+  initialOptions: OptionRow[];
+  acceptedOptionName?: string | null;
+  acceptedTotal?: number | null;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(initialLineItems);
   const [marginPctPct, setMarginPctPct] = useState(Math.round(initialMarginPct * 100));
   const [copy, setCopy] = useState(initialCopy);
+  const [options, setOptions] = useState<OptionRow[]>(initialOptions);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(hasSavedQuote);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const addOption = () => {
+    setOptions((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: "", description: "", priceDelta: 0 },
+    ]);
+  };
+  const updateOption = (id: string, patch: Partial<OptionRow>) => {
+    setOptions((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  };
+  const removeOption = (id: string) => {
+    setOptions((prev) => prev.filter((o) => o.id !== id));
+  };
 
   const totals = useMemo(() => {
     const materialTotal = rows
@@ -117,6 +144,13 @@ export function QuoteWorkspace({
         proposalClosingCta: copy.closingCta,
         roiLowPct,
         roiHighPct,
+        options: options
+          .filter((o) => o.name.trim().length > 0)
+          .map((o) => ({
+            name: o.name,
+            description: o.description,
+            priceDelta: o.priceDelta,
+          })),
       });
       setSaved(true);
       router.refresh();
@@ -261,6 +295,86 @@ export function QuoteWorkspace({
           </div>
         </div>
       </section>
+
+      <section>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-semibold">Upgrade options (optional)</h2>
+          <button
+            type="button"
+            onClick={addOption}
+            className="text-sm rounded-md border border-black/15 dark:border-white/20 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            + Add option
+          </button>
+        </div>
+        <p className="text-sm text-black/60 dark:text-white/60 mb-3">
+          Name 2–3 packages above the base quote — e.g. a paver upgrade or
+          added lighting — and the client sees them as selectable tiers on
+          the proposal instead of a single price. Leave empty to show just
+          the one quote.
+        </p>
+        {options.length > 0 && (
+          <div className="space-y-3 mb-2">
+            {options.map((opt) => (
+              <div
+                key={opt.id}
+                className="rounded-lg border border-black/10 dark:border-white/10 p-3 flex flex-wrap gap-3 items-start"
+              >
+                <div className="w-40">
+                  <label className="block text-xs font-medium mb-1">Name</label>
+                  <input
+                    value={opt.name}
+                    onChange={(e) => updateOption(opt.id, { name: e.target.value })}
+                    placeholder="e.g. Signature"
+                    className="w-full rounded-md border border-black/15 dark:border-white/20 bg-transparent px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="flex-1 min-w-[220px]">
+                  <label className="block text-xs font-medium mb-1">What&apos;s upgraded</label>
+                  <input
+                    value={opt.description}
+                    onChange={(e) => updateOption(opt.id, { description: e.target.value })}
+                    placeholder="e.g. Premium paver pattern + built-in edge lighting"
+                    className="w-full rounded-md border border-black/15 dark:border-white/20 bg-transparent px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="block text-xs font-medium mb-1">Add to total</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-black/50 dark:text-white/50">+$</span>
+                    <input
+                      type="number"
+                      step="1"
+                      value={opt.priceDelta}
+                      onChange={(e) =>
+                        updateOption(opt.id, { priceDelta: Number(e.target.value) })
+                      }
+                      className="w-full rounded-md border border-black/15 dark:border-white/20 bg-transparent px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <p className="text-xs text-black/50 dark:text-white/50 mt-1">
+                    = {formatCurrency(totals.total + (opt.priceDelta || 0))}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeOption(opt.id)}
+                  className="text-red-600 hover:underline text-xs mt-5"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {(acceptedOptionName !== undefined && acceptedOptionName !== null) || acceptedTotal ? (
+        <div className="rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 px-4 py-3 text-sm font-medium">
+          ✓ Client accepted{acceptedOptionName ? ` the ${acceptedOptionName} option` : ""} —{" "}
+          {acceptedTotal ? formatCurrency(acceptedTotal) : ""}
+        </div>
+      ) : null}
 
       <section>
         <div className="flex items-center justify-between mb-1">

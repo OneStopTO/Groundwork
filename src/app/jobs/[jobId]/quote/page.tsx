@@ -18,7 +18,10 @@ export default async function QuotePage({
 
   const job = await prisma.job.findFirst({
     where: { id: jobId, contractorId: contractor.id },
-    include: { shapes: true, quote: { include: { lineItems: true } } },
+    include: {
+      shapes: true,
+      quote: { include: { lineItems: true, options: { orderBy: { sortOrder: "asc" } } } },
+    },
   });
   if (!job) notFound();
 
@@ -149,6 +152,14 @@ export default async function QuotePage({
           businessName={contractor.businessName}
           projectType={job.projectType}
           clientName={job.clientName}
+          initialOptions={(job.quote?.options ?? []).map((o) => ({
+            id: o.id,
+            name: o.name,
+            description: o.description,
+            priceDelta: o.priceDelta,
+          }))}
+          acceptedOptionName={job.acceptedOptionName}
+          acceptedTotal={job.acceptedTotal}
         />
       </main>
     </>

@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   const pipelineJobs = jobs.filter((j) => j.quote && (j.status === "QUOTED" || j.status === "SENT"));
   const wonJobs = jobs.filter((j) => j.quote && j.status === "ACCEPTED");
   const pipelineValue = pipelineJobs.reduce((s, j) => s + (j.quote?.total ?? 0), 0);
-  const wonValue = wonJobs.reduce((s, j) => s + (j.quote?.total ?? 0), 0);
+  const wonValue = wonJobs.reduce((s, j) => s + (j.acceptedTotal ?? j.quote?.total ?? 0), 0);
 
   return (
     <>
@@ -105,13 +105,14 @@ export default async function DashboardPage() {
                   {job.quote && (
                     <p className="font-medium">
                       $
-                      {job.quote.total.toLocaleString(undefined, {
+                      {(job.acceptedTotal ?? job.quote.total).toLocaleString(undefined, {
                         maximumFractionDigits: 0,
                       })}
                     </p>
                   )}
                   <p className="text-xs text-black/50 dark:text-white/50">
                     {STATUS_LABEL[job.status]}
+                    {job.acceptedOptionName ? ` · ${job.acceptedOptionName}` : ""}
                   </p>
                 </div>
               </Link>
