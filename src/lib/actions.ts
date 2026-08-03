@@ -99,7 +99,20 @@ export async function completeOnboardingAction(formData: FormData) {
     });
   }
 
-  redirect("/dashboard");
+  redirect("/jobs/new");
+}
+
+export async function updateBusinessProfileAction(formData: FormData) {
+  const contractor = await requireContractor();
+  const businessName = String(formData.get("businessName") ?? "").trim();
+
+  await prisma.contractor.update({
+    where: { id: contractor.id },
+    data: { businessName: businessName || null },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
 }
 
 export async function selectTierAction(formData: FormData) {

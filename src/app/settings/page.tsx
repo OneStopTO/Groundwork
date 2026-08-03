@@ -6,6 +6,7 @@ import {
   updatePriceBookItemAction,
   addPriceBookItemAction,
   deletePriceBookItemAction,
+  updateBusinessProfileAction,
 } from "@/lib/actions";
 import { PROJECT_TYPE_LABELS } from "@/lib/pricing";
 import { effectiveTierLabel } from "@/lib/tiers";
@@ -25,9 +26,8 @@ export default async function SettingsPage() {
       <TopNav contractor={contractor} />
       <main className="flex-1 mx-auto max-w-3xl w-full px-6 py-10 space-y-10">
         <div>
-          <h1 className="text-2xl font-semibold mb-1">Settings</h1>
-          <p className="text-black/60 dark:text-white/60">
-            {contractor.businessName || "Your business"} ·{" "}
+          <h1 className="font-display text-2xl mb-1">Settings</h1>
+          <p style={{ color: "var(--ink-muted)" }}>
             {effectiveTierLabel(contractor)} ·{" "}
             <Link href="/pricing" className="underline">
               change plan
@@ -36,8 +36,42 @@ export default async function SettingsPage() {
         </div>
 
         <section>
-          <h2 className="text-lg font-semibold mb-1">Material price book</h2>
-          <p className="text-sm text-black/60 dark:text-white/60 mb-4">
+          <h2 className="font-display text-lg mb-1">Business profile</h2>
+          <p className="text-sm mb-4" style={{ color: "var(--ink-muted)" }}>
+            Shown on proposals your clients see, and used as the default
+            sender name.
+          </p>
+          <form
+            action={updateBusinessProfileAction}
+            className="flex flex-wrap items-end gap-3 rounded-lg border p-4"
+            style={{ borderColor: "var(--stone-border)", background: "var(--background-raised)" }}
+          >
+            <div className="flex-1 min-w-[220px]">
+              <label className="block text-xs font-medium mb-1" htmlFor="businessName">
+                Business name
+              </label>
+              <input
+                id="businessName"
+                name="businessName"
+                type="text"
+                defaultValue={contractor.businessName ?? ""}
+                placeholder="e.g. Summit Hardscapes"
+                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm"
+                style={{ borderColor: "var(--stone-border)" }}
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-md bg-emerald-700 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-800"
+            >
+              Save
+            </button>
+          </form>
+        </section>
+
+        <section>
+          <h2 className="font-display text-lg mb-1">Material price book</h2>
+          <p className="text-sm mb-4" style={{ color: "var(--ink-muted)" }}>
             Price per unit used to generate quotes from your designs. Add
             your own materials (e.g. a specific paver product) alongside the
             defaults.
@@ -47,8 +81,8 @@ export default async function SettingsPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold mb-1">Labor rates</h2>
-          <p className="text-sm text-black/60 dark:text-white/60 mb-4">
+          <h2 className="font-display text-lg mb-1">Labor rates</h2>
+          <p className="text-sm mb-4" style={{ color: "var(--ink-muted)" }}>
             Priced per sqft of finished area, by project type.
           </p>
           <PriceTable items={labor} />

@@ -24,6 +24,11 @@ export default async function DashboardPage() {
     include: { quote: true },
   });
 
+  const pipelineJobs = jobs.filter((j) => j.quote && (j.status === "QUOTED" || j.status === "SENT"));
+  const wonJobs = jobs.filter((j) => j.quote && j.status === "ACCEPTED");
+  const pipelineValue = pipelineJobs.reduce((s, j) => s + (j.quote?.total ?? 0), 0);
+  const wonValue = wonJobs.reduce((s, j) => s + (j.quote?.total ?? 0), 0);
+
   return (
     <>
       <TopNav contractor={contractor} />
@@ -40,8 +45,22 @@ export default async function DashboardPage() {
           </div>
         )}
 
+        {jobs.length > 0 && (
+          <div className="grid sm:grid-cols-3 gap-4 mb-8">
+            <StatCard label="Total jobs" value={jobs.length.toString()} />
+            <StatCard
+              label={`Pipeline (${pipelineJobs.length})`}
+              value={`$${pipelineValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            />
+            <StatCard
+              label={`Won (${wonJobs.length})`}
+              value={`$${wonValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            />
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Jobs</h1>
+          <h1 className="font-display text-2xl">Jobs</h1>
           <Link
             href="/jobs/new"
             className="rounded-md bg-emerald-700 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-800"
@@ -101,5 +120,19 @@ export default async function DashboardPage() {
         )}
       </main>
     </>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      className="rounded-lg border px-4 py-3"
+      style={{ borderColor: "var(--stone-border)", background: "var(--background-raised)" }}
+    >
+      <p className="font-mono text-[11px] uppercase tracking-wide mb-1" style={{ color: "var(--ink-muted)" }}>
+        {label}
+      </p>
+      <p className="font-display text-xl">{value}</p>
+    </div>
   );
 }

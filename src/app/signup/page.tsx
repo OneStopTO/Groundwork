@@ -8,12 +8,30 @@ export default function SignupPage() {
   const [state, formAction, pending] = useActionState(signupAction, undefined);
 
   return (
-    <main className="flex-1 flex items-center justify-center px-6 py-16">
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold mb-1">Start your free trial</h1>
-        <p className="text-sm text-black/60 dark:text-white/60 mb-6">
-          14 days, full access. See your first quote before you pick a plan.
+    <main className="flex-1 flex items-center justify-center px-6 py-16 contour-field">
+      <div className="animate-rise-in w-full max-w-sm rounded-2xl border p-8 shadow-lg shadow-black/5" style={{ borderColor: "var(--stone-border)", background: "var(--background-raised)" }}>
+        <p className="font-mono text-xs tracking-[0.18em] uppercase text-emerald-700 dark:text-emerald-400 mb-3">
+          14-day free trial
         </p>
+        <h1 className="font-display text-2xl mb-1">Start your free trial</h1>
+        <p className="text-sm mb-5" style={{ color: "var(--ink-muted)" }}>
+          Full access, no card required. See your first quote before you pick
+          a plan.
+        </p>
+        <ul className="text-sm space-y-1.5 mb-6" style={{ color: "var(--ink-muted)" }}>
+          <li className="flex gap-2">
+            <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+            <span>Visual design tool, to-scale layouts</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+            <span>Itemized material + labor quotes</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+            <span>Client-facing investment proposals</span>
+          </li>
+        </ul>
         <form action={formAction} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1" htmlFor="email">
