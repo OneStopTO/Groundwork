@@ -7,6 +7,7 @@ import {
   addPriceBookItemAction,
   deletePriceBookItemAction,
   updateBusinessProfileAction,
+  openBillingPortalAction,
 } from "@/lib/actions";
 import { PROJECT_TYPE_LABELS } from "@/lib/pricing";
 import { effectiveTierLabel } from "@/lib/tiers";
@@ -32,6 +33,17 @@ export default async function SettingsPage() {
             <Link href="/pricing" className="underline">
               change plan
             </Link>
+            {contractor.stripeCustomerId && (
+              <>
+                {" "}
+                ·{" "}
+                <form action={openBillingPortalAction} className="inline">
+                  <button type="submit" className="underline">
+                    manage billing
+                  </button>
+                </form>
+              </>
+            )}
           </p>
         </div>
 

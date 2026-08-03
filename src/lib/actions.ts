@@ -3,13 +3,22 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { prisma } from "./prisma";
 import { getSession, requireContractor } from "./session";
-import { TRIAL_DAYS } from "./tiers";
+import { TRIAL_DAYS, isTrialActive } from "./tiers";
 import { DEFAULT_PRICE_BOOK } from "./pricing";
 import { savePhoto } from "./storage";
 import { captureServerEvent } from "./posthog-server";
+import { getStripe, STRIPE_PRICE_IDS } from "./stripe";
 import type { ProjectType, PricingTier } from "@prisma/client";
+
+async function requestOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 export type ActionState = { error?: string } | undefined;
 
@@ -139,6 +148,79 @@ export async function selectTierAction(formData: FormData) {
   revalidatePath("/settings");
   revalidatePath("/pricing");
   revalidatePath("/dashboard");
+}
+
+/**
+ * The real "upgrade" button. Sends the contractor through Stripe Checkout
+ * when billing is configured (STRIPE_SECRET_KEY + a price ID for this
+ * tier); otherwise falls back to the label-only selectTierAction so the
+ * Plan page keeps working before Stripe is wired up.
+ */
+export async function startCheckoutAction(formData: FormData) {
+  const contractor = await requireContractor();
+  const tier = String(formData.get("tier") ?? "") as PricingTier;
+  if (!["BASIC", "CORE", "PREMIUM"].includes(tier)) return;
+
+  const stripe = getStripe();
+  const priceId = STRIPE_PRICE_IDS[tier];
+  if (!stripe || !priceId) {
+    await selectTierAction(formData);
+    return;
+  }
+
+  let customerId = contractor.stripeCustomerId;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: contractor.email,
+      metadata: { contractorId: contractor.id },
+    });
+    customerId = customer.id;
+    await prisma.contractor.update({
+      where: { id: contractor.id },
+      data: { stripeCustomerId: customerId },
+    });
+  }
+
+  // Honor the app's own trial — if it's still running, don't have Stripe
+  // start charging until it ends, so "you won't be charged now" (shown on
+  // the Plan page during the trial) stays true rather than double-billing
+  // on top of the trial the contractor already started.
+  const trialEndUnix = Math.floor(new Date(contractor.trialEndsAt).getTime() / 1000);
+  const trialStillMeaningful = trialEndUnix > Date.now() / 1000 + 3600;
+
+  const origin = await requestOrigin();
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    customer: customerId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${origin}/settings?checkout=success`,
+    cancel_url: `${origin}/pricing?checkout=cancelled`,
+    metadata: { contractorId: contractor.id, tier },
+    subscription_data: {
+      metadata: { contractorId: contractor.id, tier },
+      ...(isTrialActive(contractor) && trialStillMeaningful ? { trial_end: trialEndUnix } : {}),
+    },
+  });
+
+  if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+  redirect(session.url);
+}
+
+/** Stripe's hosted self-serve portal — change plan, update card, cancel, see invoices. */
+export async function openBillingPortalAction() {
+  const contractor = await requireContractor();
+  const stripe = getStripe();
+  if (!stripe || !contractor.stripeCustomerId) {
+    throw new Error("Billing isn't set up on this account yet.");
+  }
+
+  const origin = await requestOrigin();
+  const session = await stripe.billingPortal.sessions.create({
+    customer: contractor.stripeCustomerId,
+    return_url: `${origin}/settings`,
+  });
+
+  redirect(session.url);
 }
 
 export async function updatePriceBookItemAction(formData: FormData) {

@@ -62,9 +62,18 @@ model Contractor {
   businessName        String?
   typicalProjectTypes String? // JSON-encoded array of ProjectType strings, set during onboarding
   onboardedAt         DateTime?
-  selectedTier        PricingTier @default(CORE) // plan the contractor picked (billing not yet wired up)
+  selectedTier        PricingTier @default(CORE) // plan the contractor picked
   trialEndsAt         DateTime // full CORE-level access until this date regardless of selectedTier
   createdAt           DateTime    @default(now())
+
+  // Real billing, via Stripe. All nullable and unused until STRIPE_SECRET_KEY
+  // is configured — see .env for setup. subscriptionStatus is the source of
+  // truth for paid access once set; while null, access falls back to
+  // selectedTier alone (the pre-billing behavior), so accounts created
+  // before Stripe was wired up don't get locked out.
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+  subscriptionStatus   String? // mirrors Stripe's subscription.status: trialing, active, past_due, canceled, unpaid, ...
 
   priceBookItems PriceBookItem[]
   jobs           Job[]

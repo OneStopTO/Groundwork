@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getCurrentContractor } from "@/lib/session";
 import { TopNav } from "@/components/TopNav";
 import { TIERS, isTrialActive, trialDaysLeft } from "@/lib/tiers";
-import { selectTierAction } from "@/lib/actions";
+import { startCheckoutAction } from "@/lib/actions";
 
 const FAQ = [
   {
@@ -82,7 +82,7 @@ export default async function PricingPage() {
                       Current selection
                     </span>
                   ) : (
-                    <form action={selectTierAction}>
+                    <form action={startCheckoutAction}>
                       <input type="hidden" name="tier" value={tier.id} />
                       <button
                         type="submit"

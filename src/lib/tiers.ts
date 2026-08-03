@@ -66,16 +66,33 @@ export function trialDaysLeft(contractor: Pick<Contractor, "trialEndsAt">) {
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
+const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"];
+
+/**
+ * A contractor whose subscriptionStatus is still null has never gone
+ * through Stripe Checkout — either billing isn't configured yet, or they
+ * haven't upgraded. Once it's set, it's the source of truth: a canceled or
+ * past-due subscription loses access even if selectedTier still says
+ * CORE/PREMIUM from before.
+ */
+function hasPaidTierAccess(
+  contractor: Pick<Contractor, "selectedTier" | "subscriptionStatus">
+) {
+  const tierAllows = contractor.selectedTier === "CORE" || contractor.selectedTier === "PREMIUM";
+  if (contractor.subscriptionStatus == null) return tierAllows;
+  return tierAllows && ACTIVE_SUBSCRIPTION_STATUSES.includes(contractor.subscriptionStatus);
+}
+
 /** Design tool + client proposals are Core/Premium features, but the trial unlocks everything. */
 export function hasDesignAccess(
-  contractor: Pick<Contractor, "trialEndsAt" | "selectedTier">
+  contractor: Pick<Contractor, "trialEndsAt" | "selectedTier" | "subscriptionStatus">
 ) {
   if (isTrialActive(contractor)) return true;
-  return contractor.selectedTier === "CORE" || contractor.selectedTier === "PREMIUM";
+  return hasPaidTierAccess(contractor);
 }
 
 export function effectiveTierLabel(
-  contractor: Pick<Contractor, "trialEndsAt" | "selectedTier">
+  contractor: Pick<Contractor, "trialEndsAt" | "selectedTier" | "subscriptionStatus">
 ) {
   if (isTrialActive(contractor)) {
     return `Free trial (full access) — ${trialDaysLeft(contractor)} day${
@@ -83,5 +100,9 @@ export function effectiveTierLabel(
     } left`;
   }
   const tier = TIERS.find((t) => t.id === contractor.selectedTier);
-  return tier ? tier.name : contractor.selectedTier;
+  const name = tier ? tier.name : contractor.selectedTier;
+  if (contractor.subscriptionStatus && !ACTIVE_SUBSCRIPTION_STATUSES.includes(contractor.subscriptionStatus)) {
+    return `${name} (${contractor.subscriptionStatus})`;
+  }
+  return name;
 }
