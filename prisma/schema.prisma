@@ -1,0 +1,155 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PricingTier {
+  BASIC
+  CORE
+  PREMIUM
+}
+
+enum ProjectType {
+  PATIO
+  RETAINING_WALL
+  WALKWAY
+  PLANTING_BED
+  FIRE_PIT
+  DRIVEWAY
+  OTHER
+}
+
+enum ShapeType {
+  PATIO
+  WALKWAY
+  WALL
+  BED
+  FIREPIT
+}
+
+enum LineItemKind {
+  MATERIAL
+  LABOR
+  MARGIN
+}
+
+enum JobStatus {
+  DRAFT
+  DESIGNED
+  QUOTED
+  SENT
+  ACCEPTED
+}
+
+model Contractor {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  passwordHash String
+  businessName String?
+  typicalProjectTypes String? // JSON-encoded array of ProjectType strings, set during onboarding
+  onboardedAt DateTime?
+  selectedTier PricingTier @default(CORE) // plan the contractor picked (billing not yet wired up)
+  trialEndsAt DateTime // full CORE-level access until this date regardless of selectedTier
+  createdAt   DateTime @default(now())
+
+  priceBookItems PriceBookItem[]
+  jobs           Job[]
+}
+
+model PriceBookItem {
+  id           String       @id @default(cuid())
+  contractorId String
+  contractor   Contractor   @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  kind         LineItemKind
+  name         String
+  unit         String // e.g. "sqft", "linear ft", "hr", "cubic yd"
+  unitCost     Float
+  projectType  ProjectType? // optional: labor rates are often specific to a project type
+  createdAt    DateTime     @default(now())
+}
+
+model Job {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  clientName  String
+  clientEmail String?
+  clientPhone String?
+  address     String?
+
+  projectType ProjectType
+  lengthFt    Float
+  widthFt     Float
+  areaSqft    Float
+  notes       String?
+  photoUrl    String?
+
+  status      JobStatus @default(DRAFT)
+  shareToken  String    @unique @default(cuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shapes DesignShape[]
+  quote  Quote?
+}
+
+model DesignShape {
+  id    String    @id @default(cuid())
+  jobId String
+  job   Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  type     ShapeType
+  material String
+  label    String?
+  points   String // JSON-encoded array of {x,y} vertices in feet, canvas space, in order
+  heightFt Float? // wall face height (courses + cap, in feet) — WALL shapes only
+
+  createdAt DateTime @default(now())
+}
+
+model Quote {
+  id    String @id @default(cuid())
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  marginPct     Float
+  materialTotal Float
+  laborTotal    Float
+  subtotal      Float
+  total         Float
+
+  roiLowPct  Float // e.g. 0.55 = 55% of cost recouped at resale
+  roiHighPct Float
+
+  proposalHeadline   String
+  proposalMessage    String
+  proposalClosingCta String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems QuoteLineItem[]
+}
+
+model QuoteLineItem {
+  id      String       @id @default(cuid())
+  quoteId String
+  quote   Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  kind        LineItemKind
+  description String
+  quantity    Float
+  unit        String
+  unitCost    Float
+  lineTotal   Float
+  sortOrder   Int @default(0)
+}

@@ -1,26 +1,137 @@
 @import "tailwindcss";
 
+/*
+  Brand tokens — "GroundWork": stone, clay, and moss. Warm limestone paper
+  instead of clinical white, a moss-green primary (growth, trust, money),
+  and a terracotta-clay accent reserved for the "investment" moments
+  (ROI callouts, the featured plan, the trial badge).
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f3ec;
+  --foreground: #221f1a;
+  --background-raised: #ffffff;
+  --ink-muted: #6b6255;
+  --stone-border: #e4ddcc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #17140f;
+    --foreground: #f3efe6;
+    --background-raised: #201c15;
+    --ink-muted: #b5aa95;
+    --stone-border: #332c21;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  /* Moss green takes over the `emerald-*` scale used for primary actions. */
+  --color-emerald-50: #eef2ec;
+  --color-emerald-100: #dce6d8;
+  --color-emerald-300: #9dbb9a;
+  --color-emerald-400: #7fa687;
+  --color-emerald-600: #3b5b3f;
+  --color-emerald-700: #2f4a34;
+  --color-emerald-800: #24392a;
+  --color-emerald-900: #16241a;
+
+  /* Clay terracotta takes over the `amber-*` scale used for trial/highlight moments. */
+  --color-amber-50: #fbf1e7;
+  --color-amber-100: #f4dec4;
+  --color-amber-200: #eccba3;
+  --color-amber-300: #e0ad74;
+  --color-amber-800: #7a4318;
+  --color-amber-900: #4a2a10;
+
+  /*
+    The rest of the app was written with the light/dark pattern
+    `text-black/60 dark:text-white/60` (and the equivalent for borders and
+    backgrounds). Rather than touch every file, retint the two primitives
+    themselves so every existing opacity utility inherits the warm palette:
+    black -> basalt (also doubles as the dark-mode surface fill, since it's
+    already close to the dark background), white -> a faint warm off-white
+    (doubles as light-mode card surfaces and dark-mode ink).
+  */
+  --color-black: #221f1a;
+  --color-white: #fcfaf5;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  @theme inline {
+    --color-emerald-400: #8fc199;
+    --color-emerald-700: #4c7a56;
+    --color-emerald-800: #5c8f67;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-feature-settings: "ss01";
+}
+
+/* A quiet default so hover/focus states never feel like they snap. */
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Faint topographic contour lines — a nod to property surveying/site
+   grading, used as ambient texture behind hero/section content. */
+.contour-field {
+  background-image: repeating-radial-gradient(
+    circle at 15% 20%,
+    transparent 0,
+    transparent 38px,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 39px,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 40px
+  );
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
