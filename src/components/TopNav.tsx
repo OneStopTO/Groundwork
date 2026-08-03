@@ -1,4 +1,8 @@
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
+import posthog from "posthog-js";
 import type { Contractor } from "@prisma/client";
 import { effectiveTierLabel, isTrialActive } from "@/lib/tiers";
 import { logoutAction } from "@/lib/actions";
@@ -10,6 +14,12 @@ const NAV_LINKS = [
 ];
 
 export function TopNav({ contractor }: { contractor: Contractor }) {
+  useEffect(() => {
+    if (posthog.get_distinct_id() !== contractor.id) {
+      posthog.identify(contractor.id, { email: contractor.email });
+    }
+  }, [contractor.email, contractor.id]);
+
   return (
     <header className="border-b" style={{ borderColor: "var(--stone-border)" }}>
       <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between gap-4">
@@ -38,7 +48,7 @@ export function TopNav({ contractor }: { contractor: Contractor }) {
           >
             {effectiveTierLabel(contractor)}
           </span>
-          <form action={logoutAction}>
+          <form action={logoutAction} onSubmit={() => posthog.reset()}>
             <button
               className="min-h-[44px] px-1 hover:text-current"
               style={{ color: "var(--ink-muted)" }}

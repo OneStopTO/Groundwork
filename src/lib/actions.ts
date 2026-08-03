@@ -8,6 +8,7 @@ import { getSession, requireContractor } from "./session";
 import { TRIAL_DAYS } from "./tiers";
 import { DEFAULT_PRICE_BOOK } from "./pricing";
 import { savePhoto } from "./storage";
+import { captureServerEvent } from "./posthog";
 import type { ProjectType, PricingTier } from "@prisma/client";
 
 export type ActionState = { error?: string } | undefined;
@@ -39,6 +40,10 @@ export async function signupAction(
   session.contractorId = contractor.id;
   await session.save();
 
+  await captureServerEvent(contractor.id, "account_registered", {
+    trial_duration_days: TRIAL_DAYS,
+  });
+
   redirect("/onboarding");
 }
 
@@ -58,6 +63,10 @@ export async function loginAction(
   const session = await getSession();
   session.contractorId = contractor.id;
   await session.save();
+
+  await captureServerEvent(contractor.id, "contractor_logged_in", {
+    onboarding_completed: Boolean(contractor.onboardedAt),
+  });
 
   redirect(contractor.onboardedAt ? "/dashboard" : "/onboarding");
 }
@@ -99,6 +108,11 @@ export async function completeOnboardingAction(formData: FormData) {
     });
   }
 
+  await captureServerEvent(contractor.id, "onboarding_completed", {
+    project_type_count: projectTypes.length,
+    default_price_book_created: existingCount === 0,
+  });
+
   redirect("/jobs/new");
 }
 
@@ -124,6 +138,8 @@ export async function selectTierAction(formData: FormData) {
     where: { id: contractor.id },
     data: { selectedTier: tier },
   });
+
+  await captureServerEvent(contractor.id, "pricing_tier_selected", { tier });
 
   revalidatePath("/settings");
   revalidatePath("/pricing");
@@ -166,6 +182,11 @@ export async function addPriceBookItemAction(formData: FormData) {
       unitCost,
       projectType,
     },
+  });
+
+  await captureServerEvent(contractor.id, "price_book_item_added", {
+    item_kind: kind,
+    has_project_type: Boolean(projectType),
   });
 
   revalidatePath("/settings");
@@ -222,6 +243,12 @@ export async function createJobAction(formData: FormData) {
     },
   });
 
+  await captureServerEvent(contractor.id, "job_created", {
+    project_type: projectType,
+    area_sqft: areaSqft,
+    has_photo: Boolean(photoUrl),
+  });
+
   redirect(`/jobs/${job.id}/design`);
 }
 
@@ -262,6 +289,10 @@ export async function saveShapesAction(jobId: string, shapes: unknown) {
   await prisma.job.update({
     where: { id: jobId },
     data: { status: "DESIGNED" },
+  });
+
+  await captureServerEvent(contractor.id, "design_saved", {
+    shape_count: parsed.filter((shape) => shape.points.length >= 3).length,
   });
 
   revalidatePath(`/jobs/${jobId}/design`);
@@ -354,6 +385,14 @@ export async function saveQuoteAction(jobId: string, payload: unknown) {
 
   await prisma.job.update({ where: { id: jobId }, data: { status: "QUOTED" } });
 
+  await captureServerEvent(contractor.id, "quote_saved", {
+    material_total: materialTotal,
+    labor_total: laborTotal,
+    quote_total: total,
+    line_item_count: lineItems.length,
+    option_count: options.length,
+  });
+
   revalidatePath(`/jobs/${jobId}/quote`);
 }
 
@@ -363,6 +402,7 @@ export async function markSentAction(jobId: string) {
     where: { id: jobId, contractorId: contractor.id },
     data: { status: "SENT" },
   });
+  await captureServerEvent(contractor.id, "proposal_marked_sent");
   revalidatePath(`/jobs/${jobId}/quote`);
   revalidatePath("/dashboard");
 }
@@ -382,5 +422,11 @@ export async function acceptProposalAction(formData: FormData) {
       acceptedTotal: acceptedTotal && !Number.isNaN(acceptedTotal) ? acceptedTotal : null,
     },
   });
+
+  await captureServerEvent(undefined, "proposal_accepted", {
+    has_selected_option: Boolean(optionName),
+    accepted_total: acceptedTotal && !Number.isNaN(acceptedTotal) ? acceptedTotal : 0,
+  });
+
   revalidatePath(`/proposal/${shareToken}`);
 }

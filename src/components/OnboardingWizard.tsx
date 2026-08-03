@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 import { completeOnboardingAction } from "@/lib/actions";
 
 const STEPS = ["Your business", "How it works", "You're set"] as const;
@@ -26,10 +27,18 @@ const HOW_IT_WORKS = [
 
 export function OnboardingWizard({
   projectTypes,
+  contractor,
 }: {
   projectTypes: [string, string][];
+  contractor: { id: string; email: string };
 }) {
   const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (posthog.get_distinct_id() !== contractor.id) {
+      posthog.identify(contractor.id, { email: contractor.email });
+    }
+  }, [contractor.email, contractor.id]);
 
   return (
     <div className="w-full max-w-lg">

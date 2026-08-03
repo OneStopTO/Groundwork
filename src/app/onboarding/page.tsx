@@ -11,7 +11,10 @@ export default async function OnboardingPage() {
 
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-16">
-      <OnboardingWizard projectTypes={projectTypes} />
+      <OnboardingWizard
+        projectTypes={projectTypes}
+        contractor={{ id: contractor.id, email: contractor.email }}
+      />
     </main>
   );
 }
